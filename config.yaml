@@ -1,0 +1,8 @@
+LogLevel: TRACE
+DiscordToken: sasd
+Datastore:
+  Database: discord_bot
+  Host: localhost
+  Port: 5432
+  User: postgres
+  Password: postgres
