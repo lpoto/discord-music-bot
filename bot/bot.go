@@ -88,9 +88,9 @@ func (bot *Bot) Run(ctx context.Context, token string) {
 // setIntents sets the intents for the session, required
 // by the music bot
 func (bot *Bot) setIntents(session *discordgo.Session) {
-	session.Identify.Intents = discordgo.IntentsGuildMessages +
+	session.Identify.Intents =
 		discordgo.IntentsGuilds +
-		discordgo.IntentsGuildVoiceStates
+			discordgo.IntentsGuildVoiceStates
 
 }
 
@@ -98,4 +98,5 @@ func (bot *Bot) setIntents(session *discordgo.Session) {
 // provided session
 func (bot *Bot) setHandlers(session *discordgo.Session) {
 	session.AddHandler(bot.onReady)
+	session.AddHandler(bot.onInteractionCreate)
 }
