@@ -59,7 +59,7 @@ func main() {
 	bot := initBot(ctx, configuration)
 
 	go func() {
-        // graceful shutdown
+		// graceful shutdown
 		<-shutdownSignal
 		log.Println()
 		log.Warn("Shutdown requested ...")

@@ -5,7 +5,6 @@ import (
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
-	"errors"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -13,7 +12,6 @@ import (
 
 type Bot struct {
 	*log.Logger
-	discord       *discordgo.Session
 	service       *service.Service
 	datastore     *datastore.Datastore
 	youtubeClient *youtube.YoutubeClient
@@ -60,26 +58,22 @@ func (bot *Bot) Run(ctx context.Context, token string) {
 	done := ctx.Done()
 
 	bot.Info("Creating new Discord session...")
-	if discord, err := discordgo.New("Bot " + token); err != nil {
+	session, err := discordgo.New("Bot " + token)
+	if err != nil {
 		bot.Panic(err)
-	} else {
-		// NOTE: fetch bot user to verify the provided
-		// token was valid
-		user, err := discord.User("@me")
-		if err != nil {
-			bot.Panic(errors.New("Invalid token: " + token))
-		}
-		bot.Infof(
-			"Logged in with bot %s #%s",
-			user.Username, user.Discriminator,
-		)
-		bot.discord = discord
-		defer bot.discord.Close()
 	}
 	// Set intents required by the bot
-	bot.setIntents()
+	bot.setIntents(session)
 	// Set handlers for events emitted by the discord
-	bot.setHandlers()
+	bot.setHandlers(session)
+
+	if err := session.Open(); err != nil {
+		bot.Panic(err)
+	}
+	defer func() {
+		bot.Info("Closing discord session ... ")
+		session.Close()
+	}()
 
 	// Run loop until the context is done
 	// All logic is performed by the handlers
@@ -91,10 +85,17 @@ func (bot *Bot) Run(ctx context.Context, token string) {
 	}
 }
 
-func (bot *Bot) setIntents() {
+// setIntents sets the intents for the session, required
+// by the music bot
+func (bot *Bot) setIntents(session *discordgo.Session) {
+	session.Identify.Intents = discordgo.IntentsGuildMessages +
+		discordgo.IntentsGuilds +
+		discordgo.IntentsGuildVoiceStates
 
 }
 
-func (bot *Bot) setHandlers() {
-
+// setHandlers adds handlers for discord events to the
+// provided session
+func (bot *Bot) setHandlers(session *discordgo.Session) {
+	session.AddHandler(bot.onReady)
 }
