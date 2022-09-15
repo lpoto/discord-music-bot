@@ -66,6 +66,8 @@ func (bot *Bot) Run(ctx context.Context, token string) {
 	bot.setIntents(session)
 	// Set handlers for events emitted by the discord
 	bot.setHandlers(session)
+	// Register slash commands required by the bot
+	bot.setSlashCommands(session)
 
 	if err := session.Open(); err != nil {
 		bot.Panic(err)
@@ -100,4 +102,8 @@ func (bot *Bot) setHandlers(session *discordgo.Session) {
 	session.AddHandler(bot.onReady)
 	session.AddHandler(bot.onInteractionCreate)
 	session.AddHandler(bot.onMessageDelete)
+}
+
+// setSlashCommands registers all the slash commands required by the bot
+func (bot *Bot) setSlashCommands(session *discordgo.Session) {
 }
