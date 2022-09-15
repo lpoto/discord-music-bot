@@ -190,7 +190,9 @@ func (datastore *Datastore) GetQueueData(queue *model.Queue) (*model.Queue, erro
 }
 
 func (datastore *Datastore) createQueueTable() error {
-	datastore.Debug("Creating table 'queue'")
+	datastore.WithField("TableName", "queue").Debug(
+        "Creating psql table (if not exists)",
+    )
 
 	if _, err := datastore.Exec(
 		`
@@ -210,6 +212,8 @@ func (datastore *Datastore) createQueueTable() error {
 		datastore.Error("Error when creating table 'queue': %v", err)
 		return err
 	}
-	datastore.Trace("Successfully created table 'queue'")
+	datastore.WithField("TableName", "queue").Trace(
+		"Successfully created psql table",
+	)
 	return nil
 }

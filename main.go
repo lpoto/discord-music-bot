@@ -16,16 +16,21 @@ import (
 )
 
 type Configuration struct {
-	LogLevel     log.Level                `yaml:"LogLevel" validate:"required"`
-	DiscordToken string                   `yaml:"DiscordToken" validate:"required"`
-	Datastore    *datastore.Configuration `yaml:"Datastore" validate:"required"`
+	LogLevel      log.Level                `yaml:"LogLevel" validate:"required"`
+	DiscordToken  string                   `yaml:"DiscordToken" validate:"required"`
+	Datastore     *datastore.Configuration `yaml:"Datastore" validate:"required"`
+	SlashCommands *bot.SlashCommandsConfig `yaml:"SlashCommands" validate:"required"`
 }
 
 // initBot creates a new bot object with the provided config,
 // initializes it and returns the bot object
 func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
-	bot := bot.NewBot(configuration.LogLevel)
-	if err := bot.Init(ctx, configuration.Datastore); err != nil {
+	bot := bot.NewBot(
+		configuration.LogLevel,
+		configuration.SlashCommands,
+		configuration.Datastore,
+	)
+	if err := bot.Init(ctx); err != nil {
 		log.Panic(err)
 	}
 	return bot
@@ -65,7 +70,7 @@ func main() {
 		log.Warn("Shutdown requested ...")
 		cancel()
 		select {
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Second * 5):
 		}
 		log.Fatal("Forced shutdown")
 	}()

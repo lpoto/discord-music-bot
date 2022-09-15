@@ -285,7 +285,9 @@ func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []s
 }
 
 func (datastore *Datastore) createSongTable() error {
-	datastore.Debug("Creating table 'song'")
+	datastore.WithField("TableName", "song").Debug(
+		"Creating psql table (if not exists)",
+	)
 
 	if _, err := datastore.Exec(
 		`
@@ -315,8 +317,8 @@ func (datastore *Datastore) createSongTable() error {
 		)
 		return err
 	}
-	datastore.Trace(
-		"Successfully created table 'song'",
+	datastore.WithField("TableName", "song").Trace(
+		"Successfully created psql table",
 	)
 	return nil
 }
