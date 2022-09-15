@@ -99,4 +99,5 @@ func (bot *Bot) setIntents(session *discordgo.Session) {
 func (bot *Bot) setHandlers(session *discordgo.Session) {
 	session.AddHandler(bot.onReady)
 	session.AddHandler(bot.onInteractionCreate)
+	session.AddHandler(bot.onMessageDelete)
 }
