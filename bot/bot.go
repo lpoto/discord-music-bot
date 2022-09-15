@@ -14,9 +14,12 @@ import (
 
 type Bot struct {
 	*log.Logger
-	service       *service.Service
-	datastore     *datastore.Datastore
-	youtubeClient *youtube.YoutubeClient
+	service             *service.Service
+	datastore           *datastore.Datastore
+	youtubeClient       *youtube.YoutubeClient
+	customIDPrefix      string
+	slashCommandsConfig *SlashCommandsConfig
+	datastoreConfig     *datastore.Configuration
 }
 
 type SlashCommandConfig struct {
@@ -31,16 +34,19 @@ type SlashCommandsConfig struct {
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(logLevel log.Level) *Bot {
+func NewBot(logLevel log.Level, slashSlashCommandsConfig *SlashCommandsConfig, datastoreConfig *datastore.Configuration) *Bot {
 	l := log.New()
 	l.SetLevel(logLevel)
 	l.Debug("Creating Discord music bot ...")
 
 	bot := &Bot{
-		Logger:        l,
-		service:       service.NewService(logLevel),
-		datastore:     datastore.NewDatastore(logLevel),
-		youtubeClient: youtube.NewYoutubeClient(logLevel),
+		Logger:              l,
+		service:             service.NewService(logLevel),
+		datastore:           datastore.NewDatastore(logLevel),
+		youtubeClient:       youtube.NewYoutubeClient(logLevel),
+		customIDPrefix:      "%%music%bot%%",
+		slashCommandsConfig: slashSlashCommandsConfig,
+		datastoreConfig:     datastoreConfig,
 	}
 	l.Info("Discord music bot created")
 	return bot
@@ -50,10 +56,10 @@ func NewBot(logLevel log.Level) *Bot {
 // connects to a postgres database based on the provided config,
 // initialized the tables and other initial data in the datastore and
 // registers all the required commands through the discord api.
-func (bot *Bot) Init(ctx context.Context, datastoreConfig *datastore.Configuration) error {
+func (bot *Bot) Init(ctx context.Context) error {
 	bot.Debug("Initializing the bot ...")
 
-	if err := bot.datastore.Connect(datastoreConfig); err != nil {
+	if err := bot.datastore.Connect(bot.datastoreConfig); err != nil {
 		return err
 	}
 	if err := bot.datastore.Init(ctx); err != nil {
@@ -66,7 +72,7 @@ func (bot *Bot) Init(ctx context.Context, datastoreConfig *datastore.Configurati
 // Run is a long lived worker that creates a new discord session,
 // verifies it, adds required intents and discord event handlers,
 // then runs while the context is alive.
-func (bot *Bot) Run(ctx context.Context, token string, config *SlashCommandsConfig) {
+func (bot *Bot) Run(ctx context.Context, token string) {
 	done := ctx.Done()
 
 	bot.Info("Creating new Discord session...")
@@ -84,7 +90,7 @@ func (bot *Bot) Run(ctx context.Context, token string, config *SlashCommandsConf
 	}
 
 	// Register slash commands required by the bot
-	if err := bot.setSlashCommands(session, config); err != nil {
+	if err := bot.setSlashCommands(session); err != nil {
 		bot.Panic(err)
 	}
 
@@ -106,9 +112,13 @@ func (bot *Bot) Run(ctx context.Context, token string, config *SlashCommandsConf
 // setIntents sets the intents for the session, required
 // by the music bot
 func (bot *Bot) setIntents(session *discordgo.Session) {
+	//NOTE: guilds for interactions in guilds,
+	// guild messages for message delete events,
+	// voice states for voice state update events
 	session.Identify.Intents =
 		discordgo.IntentsGuilds +
-			discordgo.IntentsGuildVoiceStates
+			discordgo.IntentsGuildVoiceStates +
+			discordgo.IntentGuildMessages
 
 }
 
@@ -116,14 +126,16 @@ func (bot *Bot) setIntents(session *discordgo.Session) {
 // provided session
 func (bot *Bot) setHandlers(session *discordgo.Session) {
 	session.AddHandler(bot.onReady)
-	session.AddHandler(bot.onInteractionCreate)
 	session.AddHandler(bot.onMessageDelete)
+	session.AddHandler(bot.onBulkMessageDelete)
+	session.AddHandler(bot.onVoiceStateUpdate)
+	session.AddHandler(bot.onInteractionCreate)
 }
 
 // setSlashCommands deletes all of the bot's previously
 // registers slash commands, then registers the new
 // music and help slash commands
-func (bot *Bot) setSlashCommands(session *discordgo.Session, config *SlashCommandsConfig) error {
+func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 	bot.Debug("Registering global application commands ...")
 	// NOTE: guildID  is an empty string, so the commands are
 	// global
@@ -145,7 +157,9 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session, config *SlashComman
 	}
 	// delete the fetched global application commands
 	for _, v := range registeredCommands {
-		bot.Tracef("Deleting global application command '%s'", v.Name)
+		bot.WithField("Name", v.Name).Trace(
+			"Deleting global application command",
+		)
 		if err := session.ApplicationCommandDelete(
 			session.State.User.ID,
 			guildID,
@@ -163,17 +177,19 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session, config *SlashComman
 	}
 	commands := []*discordgo.ApplicationCommand{
 		{
-			Name:        config.Music.Name,
-			Description: config.Music.Description,
+			Name:        bot.slashCommandsConfig.Music.Name,
+			Description: bot.slashCommandsConfig.Music.Description,
 		},
 		{
-			Name:        config.Help.Name,
-			Description: config.Help.Description,
+			Name:        bot.slashCommandsConfig.Help.Name,
+			Description: bot.slashCommandsConfig.Help.Description,
 		},
 	}
 	// register the global application commands
 	for _, cmd := range commands {
-		bot.Tracef("Registering global application command '%s'", cmd.Name)
+		bot.WithField("Name", cmd.Name).Trace(
+			"Registering global application command",
+		)
 		if _, err := session.ApplicationCommandCreate(
 			session.State.User.ID,
 			guildID,
