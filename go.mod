@@ -7,6 +7,7 @@ require github.com/lib/pq v1.10.6
 require github.com/gorilla/websocket v1.5.0
 
 require (
+	github.com/bwmarrin/discordgo v0.26.1 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect

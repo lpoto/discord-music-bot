@@ -6,6 +6,7 @@ import (
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
 
+	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,7 +38,7 @@ func NewBot(logLevel log.Level) *Bot {
 // connects to a postgres database based on the provided config,
 // initialized the tables and other initial data in the datastore and
 // registers all the required commands through the discord api.
-func (bot *Bot) Init(ctx context.Context, token string, datastoreConfig *datastore.Configuration) error {
+func (bot *Bot) Init(ctx context.Context, datastoreConfig *datastore.Configuration) error {
 	bot.Debug("Initializing the bot ...")
 
 	if err := bot.datastore.Connect(datastoreConfig); err != nil {
@@ -50,8 +51,59 @@ func (bot *Bot) Init(ctx context.Context, token string, datastoreConfig *datasto
 	return nil
 }
 
-// Run logs in the bot by subscribing to the discord api websocket,
-// and listens to the relevant events comming through the websocket.
-func (bot *Bot) Run(ctx context.Context) {
-	bot.Info("Starting the bot ...")
+// Run is a long lived worker that creates a new discord session,
+// verifies it, adds required intents and discord event handlers,
+// then runs while the context is alive.
+func (bot *Bot) Run(ctx context.Context, token string) {
+	done := ctx.Done()
+
+	bot.Info("Creating new Discord session...")
+	session, err := discordgo.New("Bot " + token)
+	if err != nil {
+		bot.Panic(err)
+	}
+	// Set intents required by the bot
+	bot.setIntents(session)
+	// Set handlers for events emitted by the discord
+	bot.setHandlers(session)
+	// Register slash commands required by the bot
+	bot.setSlashCommands(session)
+
+	if err := session.Open(); err != nil {
+		bot.Panic(err)
+	}
+	defer func() {
+		bot.Info("Closing discord session ... ")
+		session.Close()
+	}()
+
+	// Run loop until the context is done
+	// All logic is performed by the handlers
+	for {
+		select {
+		case <-done:
+			return
+		}
+	}
+}
+
+// setIntents sets the intents for the session, required
+// by the music bot
+func (bot *Bot) setIntents(session *discordgo.Session) {
+	session.Identify.Intents =
+		discordgo.IntentsGuilds +
+			discordgo.IntentsGuildVoiceStates
+
+}
+
+// setHandlers adds handlers for discord events to the
+// provided session
+func (bot *Bot) setHandlers(session *discordgo.Session) {
+	session.AddHandler(bot.onReady)
+	session.AddHandler(bot.onInteractionCreate)
+	session.AddHandler(bot.onMessageDelete)
+}
+
+// setSlashCommands registers all the slash commands required by the bot
+func (bot *Bot) setSlashCommands(session *discordgo.Session) {
 }
