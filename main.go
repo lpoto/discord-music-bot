@@ -7,7 +7,10 @@ import (
 	"discord-music-bot/datastore"
 	"flag"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,13 +23,12 @@ type Configuration struct {
 
 // initBot creates a new bot object with the provided config,
 // initializes it and returns the bot object
-func initBot(ctx context.Context, configuration *Configuration) (*bot.Bot, error) {
+func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 	bot := bot.NewBot(configuration.LogLevel)
-	token := configuration.DiscordToken
-	if err := bot.Init(ctx, token, configuration.Datastore); err != nil {
-		return nil, err
+	if err := bot.Init(ctx, configuration.Datastore); err != nil {
+		log.Panic(err)
 	}
-	return bot, nil
+	return bot
 }
 
 // loadConfig loads the config from the provided yaml
@@ -48,20 +50,26 @@ func main() {
 		"File with configuration",
 	)
 	flag.Parse()
-	shutdownSignal := make(chan os.Signal, 2)
 	ctx, cancel := context.WithCancel(context.Background())
+	shutdownSignal := make(chan os.Signal, 2)
+	signal.Notify(shutdownSignal, syscall.SIGTERM, syscall.SIGINT)
+
 	configuration := loadConfig(strings.Split(*configFileParam, ","))
 
-	bot, err := initBot(ctx, configuration)
-	if err != nil {
-		log.Panic(err.Error())
-	}
+	bot := initBot(ctx, configuration)
 
 	go func() {
+        // graceful shutdown
 		<-shutdownSignal
+		log.Println()
+		log.Warn("Shutdown requested ...")
 		cancel()
-		log.Fatal("Shutdown requested")
+		select {
+		case <-time.After(time.Second * 2):
+		}
+		log.Fatal("Forced shutdown")
 	}()
 
-	bot.Run(ctx)
+	bot.Run(ctx, configuration.DiscordToken)
+	log.Print("Clean Shutdown")
 }
