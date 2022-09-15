@@ -5,6 +5,8 @@ import (
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
+	"errors"
+	"fmt"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -15,6 +17,16 @@ type Bot struct {
 	service       *service.Service
 	datastore     *datastore.Datastore
 	youtubeClient *youtube.YoutubeClient
+}
+
+type SlashCommandConfig struct {
+	Name        string `yaml:"Name" validate:"required"`
+	Description string `yaml:"Description" validate:"required"`
+}
+
+type SlashCommandsConfig struct {
+	Music *SlashCommandConfig `yaml:"Music" validate:"required"`
+	Help  *SlashCommandConfig `yaml:"Help" validate:"required"`
 }
 
 // NewBot constructs an object that connects the logic in the
@@ -54,7 +66,7 @@ func (bot *Bot) Init(ctx context.Context, datastoreConfig *datastore.Configurati
 // Run is a long lived worker that creates a new discord session,
 // verifies it, adds required intents and discord event handlers,
 // then runs while the context is alive.
-func (bot *Bot) Run(ctx context.Context, token string) {
+func (bot *Bot) Run(ctx context.Context, token string, config *SlashCommandsConfig) {
 	done := ctx.Done()
 
 	bot.Info("Creating new Discord session...")
@@ -66,12 +78,16 @@ func (bot *Bot) Run(ctx context.Context, token string) {
 	bot.setIntents(session)
 	// Set handlers for events emitted by the discord
 	bot.setHandlers(session)
-	// Register slash commands required by the bot
-	bot.setSlashCommands(session)
 
 	if err := session.Open(); err != nil {
 		bot.Panic(err)
 	}
+
+	// Register slash commands required by the bot
+	if err := bot.setSlashCommands(session, config); err != nil {
+		bot.Panic(err)
+	}
+
 	defer func() {
 		bot.Info("Closing discord session ... ")
 		session.Close()
@@ -104,6 +120,75 @@ func (bot *Bot) setHandlers(session *discordgo.Session) {
 	session.AddHandler(bot.onMessageDelete)
 }
 
-// setSlashCommands registers all the slash commands required by the bot
-func (bot *Bot) setSlashCommands(session *discordgo.Session) {
+// setSlashCommands deletes all of the bot's previously
+// registers slash commands, then registers the new
+// music and help slash commands
+func (bot *Bot) setSlashCommands(session *discordgo.Session, config *SlashCommandsConfig) error {
+	bot.Debug("Registering global application commands ...")
+	// NOTE: guildID  is an empty string, so the commands are
+	// global
+	guildID := ""
+	// fetch all global application commands defined by
+	// the bot user
+	registeredCommands, err := session.ApplicationCommands(
+		session.State.User.ID,
+		guildID,
+	)
+	if err != nil {
+		e := errors.New(
+			fmt.Sprintf(
+				"Could not fetch global application commands: %v",
+				err,
+			),
+		)
+		return e
+	}
+	// delete the fetched global application commands
+	for _, v := range registeredCommands {
+		bot.Tracef("Deleting global application command '%s'", v.Name)
+		if err := session.ApplicationCommandDelete(
+			session.State.User.ID,
+			guildID,
+			v.ID,
+		); err != nil {
+			e := errors.New(
+				fmt.Sprintf(
+					"Could not delete global application command '%v': %v",
+					v.Name,
+					err,
+				),
+			)
+			return e
+		}
+	}
+	commands := []*discordgo.ApplicationCommand{
+		{
+			Name:        config.Music.Name,
+			Description: config.Music.Description,
+		},
+		{
+			Name:        config.Help.Name,
+			Description: config.Help.Description,
+		},
+	}
+	// register the global application commands
+	for _, cmd := range commands {
+		bot.Tracef("Registering global application command '%s'", cmd.Name)
+		if _, err := session.ApplicationCommandCreate(
+			session.State.User.ID,
+			guildID,
+			cmd,
+		); err != nil {
+			e := errors.New(
+				fmt.Sprintf(
+					"Could not create global application command '%v': %v",
+					cmd.Name,
+					err,
+				),
+			)
+			return e
+		}
+	}
+	bot.Debug("Successfully registered global application commands")
+	return nil
 }

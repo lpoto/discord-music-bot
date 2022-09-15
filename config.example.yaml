@@ -1,5 +1,12 @@
 LogLevel: TRACE
 DiscordToken: <discord-bot-token>
+SlashCommands:
+  Music:
+    Name: "music"
+    Description: "Starts a new music queue"
+  Help:
+    Name: "help"
+    Description: "Info on how to use the music bot"
 Datastore:
   Database: discord_bot
   Host: localhost

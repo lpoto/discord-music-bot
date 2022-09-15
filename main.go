@@ -16,9 +16,10 @@ import (
 )
 
 type Configuration struct {
-	LogLevel     log.Level                `yaml:"LogLevel" validate:"required"`
-	DiscordToken string                   `yaml:"DiscordToken" validate:"required"`
-	Datastore    *datastore.Configuration `yaml:"Datastore" validate:"required"`
+	LogLevel      log.Level                `yaml:"LogLevel" validate:"required"`
+	DiscordToken  string                   `yaml:"DiscordToken" validate:"required"`
+	Datastore     *datastore.Configuration `yaml:"Datastore" validate:"required"`
+	SlashCommands *bot.SlashCommandsConfig `yaml:"SlashCommands" validate:"required"`
 }
 
 // initBot creates a new bot object with the provided config,
@@ -70,6 +71,6 @@ func main() {
 		log.Fatal("Forced shutdown")
 	}()
 
-	bot.Run(ctx, configuration.DiscordToken)
+	bot.Run(ctx, configuration.DiscordToken, configuration.SlashCommands)
 	log.Print("Clean Shutdown")
 }
