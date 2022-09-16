@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
+	log "github.com/sirupsen/logrus"
 )
 
 // PersistSongs inserts all of the provided songs to the database
@@ -15,10 +16,10 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 	if len(songs) < 1 {
 		return nil
 	}
-	datastore.Trace(
-		"Persisting %d songs: clientID=%s, guildID=%s",
-		len(songs), clientID, guildID,
-	)
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("Persisting %d songs", len(songs))
 
 	maxPosition, err := datastore.getMaxSongPosition(
 		clientID,
@@ -60,10 +61,10 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 		)
 	}
 	if _, err := datastore.Exec(s); err != nil {
-		datastore.Error("Error when persisting songs: %v", err)
+		datastore.Errorf("Error when persisting songs: %v", err)
 		return err
 	}
-	datastore.Trace("Successfully persisted %d songs", len(songs))
+	datastore.Tracef("Successfully persisted %d songs", len(songs))
 	return nil
 }
 
@@ -76,7 +77,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 		return nil
 	}
 
-	datastore.Trace("Updating %d songs", len(songs))
+	datastore.Tracef("Updating %d songs", len(songs))
 
 	s := `
     UPDATE "song" as s set
@@ -123,7 +124,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
     WHERE s.id = s2.id;
     `
 	if _, err := datastore.Exec(s); err != nil {
-		datastore.Error("Error when updating songs: %v", err)
+		datastore.Errorf("Error when updating songs: %v", err)
 		return err
 	}
 	datastore.Trace("Successfully updated the songs")
@@ -134,10 +135,11 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 // by the provided clientID and guilID,
 // limited by the provided offset and limit.
 func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, offset int, limit int) ([]*model.Song, error) {
-	datastore.Trace(
-		"Fetching %d songs for queue: clientID=%s, guildID=%s, offset=%d",
-		limit, clientID, guildID, offset,
-	)
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+		"Offset":   offset,
+	}).Tracef("Fetching %d songs for queue", limit)
 
 	if rows, err := datastore.Query(
 		`
@@ -153,7 +155,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 		offset,
 		limit,
 	); err != nil {
-		datastore.Error("Error when fetchings songs for queue: %v", err)
+		datastore.Errorf("Error when fetchings songs for queue: %v", err)
 		return nil, err
 	} else {
 		songs := make([]*model.Song, 0)
@@ -168,7 +170,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 				&song.Info.DurationSeconds, &song.Info.DurationString,
 				&song.Color, &ignore, &ignore, &song.Timestamp,
 			); err != nil {
-				datastore.Error(
+				datastore.Errorf(
 					"Error when fetchings songs for queue: %v", err,
 				)
 				return nil, err
@@ -176,7 +178,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 				songs = append(songs, song)
 			}
 		}
-		datastore.Trace(
+		datastore.Tracef(
 			"Successfully fetched %d songs for the queue", len(songs),
 		)
 		return songs, nil
@@ -186,10 +188,10 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 // GetSongsForQueue fetches all the songs that belong to the queue identified
 // by the provided clientID and guilID.
 func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string) ([]*model.Song, error) {
-	datastore.Trace(
-		"Fetching all songs for queue: clientID=%s, guildID=%s",
-		clientID, guildID,
-	)
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Trace("Fetching all songs for queue")
 
 	if rows, err := datastore.Query(
 		`
@@ -201,7 +203,7 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Error("Error when fetchings songs for queue: %v", err)
+		datastore.Errorf("Error when fetchings songs for queue: %v", err)
 		return nil, err
 	} else {
 		songs := make([]*model.Song, 0)
@@ -216,7 +218,7 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 				&song.Info.DurationSeconds, &song.Info.DurationString,
 				&song.Color, &ignore, &ignore, &song.Timestamp,
 			); err != nil {
-				datastore.Error(
+				datastore.Errorf(
 					"Error when fetchings songs for queue: %v", err,
 				)
 				return nil, err
@@ -224,7 +226,7 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 				songs = append(songs, song)
 			}
 		}
-		datastore.Trace(
+		datastore.Tracef(
 			"Successfully fetched %d songs for the queue", len(songs),
 		)
 		return songs, nil
@@ -234,10 +236,11 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 // GetSongCountForQueue returns the number of songs that belong
 // to the queue identified by the provided clientID and guildID
 func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string) int {
-	datastore.Trace(
-		"Fetching song count for queue: clientID=%s, guildID=%s",
-		clientID, guildID,
-	)
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Trace("Fetching song count for queue")
+
 	var count int
 	if err := datastore.QueryRow(
 		`
@@ -248,12 +251,12 @@ func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string
 		clientID,
 		guildID,
 	).Scan(&count); err != nil {
-		datastore.Error(
+		datastore.Errorf(
 			"Error when fetching song count for queue: %v", err,
 		)
 		count = 0
 	}
-	datastore.Trace("Got song count for the queue: %d", count)
+	datastore.Tracef("Got song count for the queue: %d", count)
 	return count
 }
 
@@ -262,10 +265,11 @@ func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string
 // If force is true, the songs are deleted, else they are moved
 // to the 'inactive_song' table.
 func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []string) error {
-	datastore.Trace(
-		"Removing %d songs: clientID=%s, guildID=%s",
-		len(ids), clientID, guildID,
-	)
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("Removing %d songs from queue", len(ids))
+
 	if _, err := datastore.Exec(
 		`
         DELETE FROM "song"
@@ -277,7 +281,7 @@ func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []s
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Error(
+		datastore.Errorf(
 			"Error when deleting songs: %v", err,
 		)
 	}
@@ -312,7 +316,7 @@ func (datastore *Datastore) createSongTable() error {
         `,
 	); err != nil {
 		datastore.Tracef(
-			"Error when creating table 'song'",
+            "Error when creating table 'song': %v",
 			err,
 		)
 		return err
@@ -324,11 +328,11 @@ func (datastore *Datastore) createSongTable() error {
 }
 
 func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) (int, error) {
-	datastore.Trace(
-		"Fetching max song position: clientID=%s, guildID=%s",
-		clientID,
-		guildID,
-	)
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Trace("Fetching max song position for queue")
+
 	var position int = 0
 	if err := datastore.QueryRow(
 		`
@@ -341,11 +345,11 @@ func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) 
 		guildID,
 		clientID,
 	).Scan(&position); err != nil {
-		datastore.Trace(
+		datastore.Tracef(
 			"Error when fetching max song position: %v", err,
 		)
 		return 0, err
 	}
-	datastore.Trace("Successfully fetched max song position: %d", position)
+	datastore.Tracef("Successfully fetched max song position: %d", position)
 	return position, nil
 }

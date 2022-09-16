@@ -1,6 +1,4 @@
 # used for testing with github workflows
-# must be run from root directory with:
-#    docker-compose -f .dockerenv/docker-compose.test.yaml  ...
 version: '3.8'
 services:
   app:
@@ -10,7 +8,7 @@ services:
     volumes:
     - go:/.go/  # go
     - go_cache:/.gocache/  # go cache
-    - ./src:/sources/src:cached
+    - ../src:/sources/src:cached
     working_dir: /sources/src
     networks:
     - vpcbr
