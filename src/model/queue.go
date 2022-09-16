@@ -33,20 +33,6 @@ type Queue struct {
 	Size      int           `json:"size"`
 }
 
-func NewQueue(clientID string, guildID string, channelID string, messageID string, limit int) *Queue {
-	queue := new(Queue)
-	queue.ChannelID = channelID
-	queue.GuildID = guildID
-	queue.ClientID = clientID
-	queue.MessageID = messageID
-	queue.Size = 0
-	queue.Offset = 0
-	queue.HeadSong = nil
-	queue.Limit = limit
-	queue.Options = make([]QueueOption, 0)
-	return queue
-}
-
 func ParseQueueOption(s string) (QueueOption, error) {
 	opts := GetQueueOptions()
 	s2 := strings.ToLower(s)

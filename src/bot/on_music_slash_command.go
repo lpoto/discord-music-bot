@@ -8,4 +8,23 @@ import "github.com/bwmarrin/discordgo"
 // the interaction's command data name matches the music slash command's name.
 func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Music slash command")
+	queue := bot.service.NewQueue(
+		s.State.User.ID,
+		i.GuildID,
+	)
+	embed := bot.service.MapQueueToEmbed(
+		queue,
+		bot.slashCommandsConfig.Music.Description,
+	)
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{embed},
+		},
+	}); err != nil {
+		bot.WithField("GuildID", i.GuildID).Errorf(
+			"Error when sending a new queue: %v",
+			err,
+		)
+	}
 }
