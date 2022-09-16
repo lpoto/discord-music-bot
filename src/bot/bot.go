@@ -17,7 +17,6 @@ type Bot struct {
 	service             *service.Service
 	datastore           *datastore.Datastore
 	youtubeClient       *youtube.YoutubeClient
-	customIDPrefix      string
 	slashCommandsConfig *SlashCommandsConfig
 	datastoreConfig     *datastore.Configuration
 }
@@ -44,7 +43,6 @@ func NewBot(logLevel log.Level, slashSlashCommandsConfig *SlashCommandsConfig, d
 		service:             service.NewService(logLevel),
 		datastore:           datastore.NewDatastore(logLevel),
 		youtubeClient:       youtube.NewYoutubeClient(logLevel),
-		customIDPrefix:      "%%music%bot%%",
 		slashCommandsConfig: slashSlashCommandsConfig,
 		datastoreConfig:     datastoreConfig,
 	}
