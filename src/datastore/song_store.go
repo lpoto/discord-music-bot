@@ -316,7 +316,7 @@ func (datastore *Datastore) createSongTable() error {
         `,
 	); err != nil {
 		datastore.Tracef(
-            "Error when creating table 'song': %v",
+			"Error when creating table 'song': %v",
 			err,
 		)
 		return err

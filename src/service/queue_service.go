@@ -10,10 +10,11 @@ import (
 
 // NewQueue constructs an object that represents a music queue
 // in a discord server. It is identified by the clientID and guildID.
-func (service *Service) NewQueue(clientID string, guildID string) *model.Queue {
+func (service *Service) NewQueue(clientID string, guildID string, messageID string) *model.Queue {
 	queue := new(model.Queue)
 	queue.GuildID = guildID
 	queue.ClientID = clientID
+	queue.MessageID = messageID
 	queue.Size = 0       // number of songs in the queue
 	queue.Offset = 0     // index of songs displayed at first position
 	queue.HeadSong = nil // currently playing song

@@ -12,9 +12,8 @@ import (
 // identified by the same clientID and guildID, already exists.
 func (datastore *Datastore) PersistQueue(queue *model.Queue) (*model.Queue, error) {
 	datastore.WithFields(log.Fields{
-		"ClientID":  queue.ClientID,
-		"GuildID":   queue.GuildID,
-		"MessageID": queue.MessageID,
+		"ClientID": queue.ClientID,
+		"GuildID":  queue.GuildID,
 	}).Trace("Persisting queue")
 
 	newQueue := &model.Queue{}
@@ -23,25 +22,23 @@ func (datastore *Datastore) PersistQueue(queue *model.Queue) (*model.Queue, erro
 	if err := datastore.QueryRow(
 		`
         INSERT INTO "queue" (
-            client_id, guild_id, channel_id, message_id,
-            "offset", "limit", options
+            client_id, guild_id, message_id, "offset", "limit", options
         ) VALUES
-            ($1, $2, $3, $4, $5, $6, $7)
+            ($1, $2, $3, $4, $5, $6)
         RETURNING *;
         `,
 		queue.ClientID,
 		queue.GuildID,
-		queue.ChannelID,
 		queue.MessageID,
 		queue.Offset,
 		queue.Limit,
 		pq.Array(model.QueueOptionsToStringSlice(queue.Options)),
 	).Scan(
-		&newQueue.ClientID, &newQueue.GuildID,
-		&newQueue.ChannelID, &newQueue.MessageID, &newQueue.Offset,
+		&newQueue.ClientID, &newQueue.GuildID, &newQueue.MessageID,
+		&newQueue.Offset,
 		&newQueue.Limit, pq.Array(&opts),
 	); err != nil {
-		datastore.Errorf(
+		datastore.Tracef(
 			"Error when persisting queue: %v", err,
 		)
 		return nil, err
@@ -58,9 +55,8 @@ func (datastore *Datastore) PersistQueue(queue *model.Queue) (*model.Queue, erro
 // Returns error if the queue does not exist in the databse.
 func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error) {
 	datastore.WithFields(log.Fields{
-		"ClientID":  queue.ClientID,
-		"GuildID":   queue.GuildID,
-		"MessageID": queue.MessageID,
+		"ClientID": queue.ClientID,
+		"GuildID":  queue.GuildID,
 	}).Trace("Updating queue")
 
 	newQueue := &model.Queue{}
@@ -69,27 +65,26 @@ func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error
 	if err := datastore.QueryRow(
 		`
         UPATE "queue" 
-        SET message_id = $3,
-            offset = $4,
-            limit = $5,
-            options = $6
+        SET offset = $3,
+            limit = $4,
+            options = $5
+            message_id = $6
         WHERE "queue".client_id = $1 AND
             "queue".guild_id = $2
         RETURNING *;
         `,
 		queue.ClientID,
 		queue.GuildID,
-		queue.ChannelID,
-		queue.MessageID,
 		queue.Offset,
 		queue.Limit,
 		pq.Array(model.QueueOptionsToStringSlice(queue.Options)),
+		queue.MessageID,
 	).Scan(
-		&newQueue.ClientID, &newQueue.GuildID,
-		&newQueue.ChannelID, &newQueue.MessageID, &newQueue.Offset,
+		&newQueue.ClientID, &newQueue.GuildID, &newQueue.MessageID,
+		&newQueue.Offset,
 		&newQueue.Limit, pq.Array(&opts),
 	); err != nil {
-		datastore.Errorf(
+		datastore.Tracef(
 			"Error when updating queue: %v", err,
 		)
 		return nil, err
@@ -117,21 +112,40 @@ func (datastore *Datastore) RemoveQueue(clientID string, guildID string) error {
 		guildID,
 		clientID,
 	); err != nil {
-		datastore.Errorf(
+		datastore.Tracef(
 			"Error when removing the queue: %v", err,
 		)
-
 	}
+	datastore.Trace("Successfully removed the queue")
 	return nil
 }
 
 // GetQueue fetches the queue identified by the provided clientID and guildID.
+// Fetches all the required song data for the queue.
 // Returns error if no such queue exists.
 func (datastore *Datastore) GetQueue(clientID string, guildID string) (*model.Queue, error) {
 	datastore.WithFields(log.Fields{
 		"ClientID": clientID,
 		"GuildID":  guildID,
 	}).Trace("Fetching queue")
+
+	queue, err := datastore.FindQueue(clientID, guildID)
+	if err != nil {
+		return nil, err
+	}
+	datastore.Trace("Successfully fetched the queue")
+
+	return datastore.GetQueueData(queue)
+}
+
+// FindQueue searches for a queue with the provided clientID and guildID.
+// Returns error if no such queue exists.
+// WARNING: This does not fetch any song data for the found queues.
+func (datastore *Datastore) FindQueue(clientID string, guildID string) (*model.Queue, error) {
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Trace("Finding a queue")
 
 	queue := &model.Queue{}
 	opts := make([]string, 0)
@@ -145,20 +159,18 @@ func (datastore *Datastore) GetQueue(clientID string, guildID string) (*model.Qu
 		guildID,
 		clientID,
 	).Scan(
-		&queue.ClientID, &queue.GuildID,
-		&queue.ChannelID, &queue.MessageID, &queue.Offset,
-		&queue.Limit, pq.Array(&opts),
+		&queue.ClientID, &queue.GuildID, &queue.MessageID,
+		&queue.Offset, &queue.Limit, pq.Array(&opts),
 	); err != nil {
 		datastore.Tracef(
-			"Error when fetching the queue: %v", err,
+			"Error when finding queues: %v", err,
 		)
 		return nil, err
 	}
-	datastore.Trace("Successfully fetched the queue")
-
 	queue.Options = model.StringSliceToQueueOptions(opts)
 
-	return datastore.GetQueueData(queue)
+	datastore.Trace("Successfully found the queue")
+	return queue, nil
 }
 
 // GetQueueData fetches the queue's songs,
@@ -204,7 +216,6 @@ func (datastore *Datastore) createQueueTable() error {
         CREATE TABLE IF NOT EXISTS "queue" (
             client_id VARCHAR,
             guild_id VARCHAR,
-            channel_id VARCHAR NOT NULL,
             message_id VARCHAR NOT NULL,
             "offset" INTEGER NOT NULL DEFAULT '0',
             "limit" INTEGER NOT NULL DEFAULT '10',
@@ -214,7 +225,7 @@ func (datastore *Datastore) createQueueTable() error {
         );
         `,
 	); err != nil {
-		datastore.Errorf("Error when creating table 'queue': %v", err)
+		datastore.Tracef("Error when creating table 'queue': %v", err)
 		return err
 	}
 	datastore.WithField("TableName", "queue").Trace(

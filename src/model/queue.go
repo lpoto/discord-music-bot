@@ -23,7 +23,6 @@ const (
 type Queue struct {
 	ClientID  string        `json:"client_id"`
 	GuildID   string        `json:"guild_id"`
-	ChannelID string        `json:"channel_id"`
 	MessageID string        `json:"message_id"`
 	Offset    int           `json:"offset"`
 	Limit     int           `json:"limit"`
