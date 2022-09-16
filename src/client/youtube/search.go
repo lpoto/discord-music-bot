@@ -16,7 +16,7 @@ const (
 // search result. If the query is a youtube video url, the url is used
 // for fetching the info.
 func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, error) {
-	client.Trace("Searching for %d songs on Youtube", len(queries))
+	client.Tracef("Searching for %d songs on Youtube", len(queries))
 
 	if len(queries) == 0 {
 		return nil, errors.New("No queries provided")
@@ -62,7 +62,7 @@ func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, e
 				break songLoop
 			}
 		}
-		client.Trace("Successfuly found %d songs", len(songs))
+		client.Tracef("Successfuly found %d songs", len(songs))
 		return songs, nil
 	}
 	return []*model.SongInfo{}, nil

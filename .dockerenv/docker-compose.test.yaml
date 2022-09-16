@@ -1,0 +1,19 @@
+# used for testing with github workflows
+version: '3.8'
+services:
+  app:
+    image: golang:latest
+    init: true  # run tini - https://github.com/krallin/tini
+    entrypoint: "sleep infinity"
+    volumes:
+    - go:/.go/  # go
+    - go_cache:/.gocache/  # go cache
+    - ../src:/sources/src:cached
+    working_dir: /sources/src
+    networks:
+    - vpcbr
+networks:
+  vpcbr:
+volumes:
+  go:
+  go_cache:
