@@ -22,19 +22,21 @@ func (datastore *Datastore) PersistQueue(queue *model.Queue) (*model.Queue, erro
 	if err := datastore.QueryRow(
 		`
         INSERT INTO "queue" (
-            client_id, guild_id, message_id, "offset", "limit", options
+            client_id, guild_id, message_id, channel_id, "offset", "limit", options
         ) VALUES
-            ($1, $2, $3, $4, $5, $6)
+            ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
         `,
 		queue.ClientID,
 		queue.GuildID,
 		queue.MessageID,
+		queue.ChannelID,
 		queue.Offset,
 		queue.Limit,
 		pq.Array(model.QueueOptionsToStringSlice(queue.Options)),
 	).Scan(
-		&newQueue.ClientID, &newQueue.GuildID, &newQueue.MessageID,
+		&newQueue.ClientID, &newQueue.GuildID,
+		&newQueue.MessageID, &newQueue.ChannelID,
 		&newQueue.Offset,
 		&newQueue.Limit, pq.Array(&opts),
 	); err != nil {
@@ -69,6 +71,7 @@ func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error
             limit = $4,
             options = $5
             message_id = $6
+            channel_id = $7
         WHERE "queue".client_id = $1 AND
             "queue".guild_id = $2
         RETURNING *;
@@ -79,8 +82,10 @@ func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error
 		queue.Limit,
 		pq.Array(model.QueueOptionsToStringSlice(queue.Options)),
 		queue.MessageID,
+		queue.ChannelID,
 	).Scan(
-		&newQueue.ClientID, &newQueue.GuildID, &newQueue.MessageID,
+		&newQueue.ClientID, &newQueue.GuildID,
+		&newQueue.MessageID, &newQueue.ChannelID,
 		&newQueue.Offset,
 		&newQueue.Limit, pq.Array(&opts),
 	); err != nil {
@@ -159,7 +164,8 @@ func (datastore *Datastore) FindQueue(clientID string, guildID string) (*model.Q
 		guildID,
 		clientID,
 	).Scan(
-		&queue.ClientID, &queue.GuildID, &queue.MessageID,
+		&queue.ClientID, &queue.GuildID,
+		&queue.MessageID, &queue.ChannelID,
 		&queue.Offset, &queue.Limit, pq.Array(&opts),
 	); err != nil {
 		datastore.Tracef(
@@ -171,6 +177,41 @@ func (datastore *Datastore) FindQueue(clientID string, guildID string) (*model.Q
 
 	datastore.Trace("Successfully found the queue")
 	return queue, nil
+}
+
+// FindAllQueue returns all queues in the datastore.
+// WARNING: This does not fetch any song data for the found queues.
+func (datastore *Datastore) FindAllQueues() ([]*model.Queue, error) {
+	datastore.Trace("Finding all queues")
+
+	queues := make([]*model.Queue, 0)
+
+	if rows, err := datastore.Query(
+		`SELECT * FROM "queue"`,
+	); err != nil {
+		datastore.Tracef(
+			"Error when finding all queues: %v", err,
+		)
+		return nil, err
+	} else {
+		for rows.Next() {
+			queue := &model.Queue{}
+			opts := make([]string, 0)
+			if err := rows.Scan(
+				&queue.ClientID, &queue.GuildID,
+				&queue.MessageID, &queue.ChannelID,
+				&queue.Offset, &queue.Limit, pq.Array(&opts),
+			); err != nil {
+				datastore.Tracef(
+					"Error when scanning queue: %v", err,
+				)
+			}
+			queue.Options = model.StringSliceToQueueOptions(opts)
+            queues = append(queues, queue)
+		}
+	}
+	datastore.Trace("Successfully found all the queues")
+	return queues, nil
 }
 
 // GetQueueData fetches the queue's songs,
@@ -217,6 +258,7 @@ func (datastore *Datastore) createQueueTable() error {
             client_id VARCHAR,
             guild_id VARCHAR,
             message_id VARCHAR NOT NULL,
+            channel_id VARCHAR NOT NULL,
             "offset" INTEGER NOT NULL DEFAULT '0',
             "limit" INTEGER NOT NULL DEFAULT '10',
             options TEXT[] DEFAULT ARRAY[]::TEXT[],

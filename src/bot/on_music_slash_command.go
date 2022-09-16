@@ -42,7 +42,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	queue := bot.service.NewQueue(
 		s.State.User.ID,
 		i.GuildID,
-		"",
+		"", "",
 	)
 	embed := bot.service.MapQueueToEmbed(
 		queue,
@@ -71,6 +71,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		)
 	}
 	queue.MessageID = msg.ID
+	queue.ChannelID = msg.ChannelID
 	if _, err := bot.datastore.PersistQueue(queue); err != nil {
 		bot.Errorf("Error when persisting a new queue: %v", err)
 	}
