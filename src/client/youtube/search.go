@@ -15,14 +15,14 @@ const (
 // recieved the found videos' information. Always returns the first
 // search result. If the query is a youtube video url, the url is used
 // for fetching the info.
-func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, error) {
-	client.Tracef("Searching for %d songs on Youtube", len(queries))
+func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
+	i := client.GetIdx()
 
-	if len(queries) == 0 {
-		return nil, errors.New("No queries provided")
-	}
+	client.Tracef("Youtube start %d: Search %d song/s on Youtube", i, len(queries))
+
 	if len(queries) > MaxSongQueries {
-		return nil, errors.New("Cannot query more than 100 songs at once")
+		client.Tracef("Youtube error %d: Tried to query more than %d songs", i, MaxSongQueries)
+		return []*model.SongInfo{}
 	}
 	added := make(map[string]struct{})
 	songBuffer := make(chan *model.SongInfo, len(queries))
@@ -35,14 +35,18 @@ func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, e
 		wg.Add(1)
 		added[query] = struct{}{}
 		go func(query string) {
-			if info, err := client.searchSong(query); err != nil {
+			defer func() {
+				wg.Done()
+			}()
+			info, err := client.searchSong(query)
+			if err != nil {
+				client.Tracef("Youtube error %d: %v", i, err)
 				return
-			} else {
-				select {
-				case songBuffer <- info:
-				default:
-					client.Panic("Song buffer full")
-				}
+			}
+			select {
+			case songBuffer <- info:
+			default:
+				client.Panic("Song buffer full")
 			}
 
 		}(query)
@@ -62,10 +66,11 @@ func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, e
 				break songLoop
 			}
 		}
-		client.Tracef("Successfuly found %d songs", len(songs))
-		return songs, nil
+		client.Tracef("Youtube done  %d: Found %d songs", i, len(songs))
+		return songs
 	}
-	return []*model.SongInfo{}, nil
+	client.Tracef("Youtube done  %d: Found no songs", i)
+	return []*model.SongInfo{}
 }
 
 func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {

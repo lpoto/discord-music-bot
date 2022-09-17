@@ -16,6 +16,7 @@ const (
 type YoutubeClient struct {
 	*log.Logger
 	*base.BaseClient
+    idx int
 }
 
 // NewYoutubeClient constructs a new object that handles
@@ -28,6 +29,7 @@ func NewYoutubeClient(logLevel log.Level) *YoutubeClient {
 	return &YoutubeClient{
 		l,
 		base.NewClient(BaseYoutubeUrl),
+        0,
 	}
 }
 
@@ -36,4 +38,10 @@ func NewYoutubeClient(logLevel log.Level) *YoutubeClient {
 func (client *YoutubeClient) Get(endpoint string) *base.Request {
 	req, _ := client.NewRequest("GET", endpoint)
 	return req
+}
+
+func (client *YoutubeClient) GetIdx() int {
+    idx := client.idx
+    client.idx = (client.idx + 1) % 100
+    return idx
 }

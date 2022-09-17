@@ -5,10 +5,8 @@ import (
 )
 
 // onInteractionCreate is a handler function called when discord emits
-// INTERACTION_CREATE event. If the interaction is application command and
-// the name matches the bot's music or help command, it calls either
-// onMusicSlashCommand or onHelpSlashCommand. Otherwise if the interaction's
-// type is messageComponent, it calls either onButtonClick, onSelectMenu or onTextInput
+// INTERACTION_CREATE event. It determines the type of interaction
+// and which handler should be called.
 func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	if i.GuildID == "" || i.Interaction.AppID != s.State.User.ID {
@@ -21,40 +19,35 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 	bot.WithField("GuildID", i.GuildID).Trace("Interaction created")
 
 	if i.Type == discordgo.InteractionApplicationCommand {
+		// NOTE: an application command has been used,
+		// determine which one
 
-		if i.ApplicationCommandData().Name ==
-			bot.applicationCommandsConfig.Music.Name {
-			// NOTE: recieved interaction is a music slash command
+		switch i.ApplicationCommandData().Name {
+		case bot.applicationCommandsConfig.Music.Name:
+			// music slash command has been used
 			bot.onMusicSlashCommand(s, i)
-		} else if i.ApplicationCommandData().Name ==
-			bot.applicationCommandsConfig.Help.Name {
-			// NOTE: recieved interaction is a help slash command
+		case bot.applicationCommandsConfig.Help.Name:
+			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)
-		} else if i.ApplicationCommandData().Name ==
-			bot.applicationCommandsConfig.AddSongs.Name {
-			// NOTE: recieved interaction is a add songs message command
-			bot.onAddSongsCommand(s, i)
 		}
+	} else if i.Type == discordgo.InteractionModalSubmit {
+		// NOTE: a user has submited a modal in the discord server
+		// determine which modal has been submitted
+		switch bot.getModalName(i.Interaction.ModalSubmitData()) {
+		case bot.applicationCommandsConfig.AddSongs.Name:
+			// add songs modal has been submited
+			bot.onAddSongsModalSubmit(s, i)
+		}
+
 	} else if i.Type == discordgo.InteractionMessageComponent {
 
 		//NOTE: all message component id's authored by the bot start with the same prefix
 		// that way we know bot is the author
 
-		if i.Interaction.MessageComponentData().ComponentType ==
-			discordgo.ButtonComponent {
-			// NOTE: a user has clicked a button on a message owned
-			// by the bot
+		switch i.Interaction.MessageComponentData().ComponentType {
+		case discordgo.ButtonComponent:
+			// a button has been clicked
 			bot.onButtonClick(s, i)
-		} else if i.Interaction.MessageComponentData().ComponentType ==
-			discordgo.SelectMenuComponent {
-			// NOTE: a user has selected something from a select menu
-			// on a message owned by the bot
-			bot.onSelectMenu(s, i)
-		} else if i.Interaction.MessageComponentData().ComponentType ==
-			discordgo.TextInputComponent {
-			// NOTE: a user has typed something into a text input
-			// on a message owned by the bot
-			bot.onTextInput(s, i)
 		}
 	}
 }
