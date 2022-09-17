@@ -23,28 +23,14 @@ const (
 type Queue struct {
 	ClientID  string        `json:"client_id"`
 	GuildID   string        `json:"guild_id"`
-	ChannelID string        `json:"channel_id"`
 	MessageID string        `json:"message_id"`
+	ChannelID string        `json:"channel_id"`
 	Offset    int           `json:"offset"`
 	Limit     int           `json:"limit"`
 	Options   []QueueOption `json:"options"`
 	Songs     []*Song       `json:"songs"`
 	HeadSong  *Song         `json:"head_song"`
 	Size      int           `json:"size"`
-}
-
-func NewQueue(clientID string, guildID string, channelID string, messageID string, limit int) *Queue {
-	queue := new(Queue)
-	queue.ChannelID = channelID
-	queue.GuildID = guildID
-	queue.ClientID = clientID
-	queue.MessageID = messageID
-	queue.Size = 0
-	queue.Offset = 0
-	queue.HeadSong = nil
-	queue.Limit = limit
-	queue.Options = make([]QueueOption, 0)
-	return queue
 }
 
 func ParseQueueOption(s string) (QueueOption, error) {

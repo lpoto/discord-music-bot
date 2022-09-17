@@ -12,6 +12,8 @@ func (bot *Bot) onMessageDelete(s *discordgo.Session, m *discordgo.MessageDelete
 		return
 	}
 	bot.WithField("GuildID", m.GuildID).Trace("Message deleted")
+
+	bot.deleteQueue(s.State.User.ID, m.GuildID, []string{m.ID})
 }
 
 // onBulkMessageDelete is a handler function called when discord emits
@@ -21,5 +23,40 @@ func (bot *Bot) onBulkMessageDelete(s *discordgo.Session, m *discordgo.MessageDe
 	if m.GuildID == "" {
 		return
 	}
-	bot.WithField("GuildID", m.GuildID).Trace("Messages bulk deleted")
+	bot.deleteQueue(s.State.User.ID, m.GuildID, m.Messages)
+}
+
+func (bot *Bot) deleteQueue(clientID string, guildID string, messageIDs []string) {
+	if queue, err := bot.datastore.FindQueue(
+		clientID,
+		guildID,
+	); err != nil {
+		bot.Errorf(
+			"Error when finding queue after message delete: %v",
+			err,
+		)
+	} else {
+		ok := false
+		for _, v := range messageIDs {
+			if queue.MessageID == v {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			bot.Trace("The queue message was not deleted")
+			return
+		}
+		bot.Trace("The queue message was deleted, removing the queue")
+		if err := bot.datastore.RemoveQueue(
+			clientID,
+			queue.GuildID,
+		); err != nil {
+			bot.Errorf(
+				"Error when removing queue after message delete: %v",
+				err,
+			)
+		}
+	}
+
 }

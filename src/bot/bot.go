@@ -17,7 +17,6 @@ type Bot struct {
 	service             *service.Service
 	datastore           *datastore.Datastore
 	youtubeClient       *youtube.YoutubeClient
-	customIDPrefix      string
 	slashCommandsConfig *SlashCommandsConfig
 	datastoreConfig     *datastore.Configuration
 }
@@ -44,7 +43,6 @@ func NewBot(logLevel log.Level, slashSlashCommandsConfig *SlashCommandsConfig, d
 		service:             service.NewService(logLevel),
 		datastore:           datastore.NewDatastore(logLevel),
 		youtubeClient:       youtube.NewYoutubeClient(logLevel),
-		customIDPrefix:      "%%music%bot%%",
 		slashCommandsConfig: slashSlashCommandsConfig,
 		datastoreConfig:     datastoreConfig,
 	}
@@ -93,6 +91,9 @@ func (bot *Bot) Run(ctx context.Context, token string) {
 	if err := bot.setSlashCommands(session); err != nil {
 		bot.Panic(err)
 	}
+
+	// check if any queues should be removed from datastore
+	bot.checkIfAllQueuesExist(session)
 
 	defer func() {
 		bot.Info("Closing discord session ... ")
@@ -207,4 +208,35 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 	}
 	bot.Debug("Successfully registered global application commands")
 	return nil
+}
+
+// Removes all queue messages from datastore, for which the
+// messages not longer exist in the discord channels
+func (bot *Bot) checkIfAllQueuesExist(session *discordgo.Session) {
+	bot.Debug("Checking if any queues in the datastore should be removed ...")
+
+	queues, err := bot.datastore.FindAllQueues()
+	if err != nil {
+		bot.Errorf(
+			"Error when checking if all queues exist: %v", err,
+		)
+		return
+	}
+	for _, queue := range queues {
+		if _, err := session.ChannelMessage(
+			queue.ChannelID,
+			queue.MessageID,
+		); err != nil {
+			if err := bot.datastore.RemoveQueue(
+				queue.ClientID,
+				queue.GuildID,
+			); err != nil {
+				bot.Errorf(
+					"Error when checking if all queues exist: %v", err,
+				)
+
+			}
+		}
+	}
+
 }

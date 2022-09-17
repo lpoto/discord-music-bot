@@ -15,6 +15,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type MusicBot struct {
+	Config *Configuration `yaml:"MusicBot" validate:"required"`
+}
+
 type Configuration struct {
 	LogLevel      log.Level                `yaml:"LogLevel" validate:"required"`
 	DiscordToken  string                   `yaml:"DiscordToken" validate:"required"`
@@ -39,12 +43,12 @@ func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 // loadConfig loads the config from the provided yaml
 // files into the Configuration object, panics on error
 func loadConfig(configFiles []string) *Configuration {
-	var configuration Configuration
-	err := config.LoadAndValidateConfiguration(configFiles, &configuration)
+	var musicBot MusicBot
+	err := config.LoadAndValidateConfiguration(configFiles, &musicBot)
 	if err != nil {
 		log.Panic(err)
 	}
-	return &configuration
+	return musicBot.Config
 
 }
 
