@@ -23,13 +23,17 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 	if i.Type == discordgo.InteractionApplicationCommand {
 
 		if i.ApplicationCommandData().Name ==
-			bot.slashCommandsConfig.Music.Name {
+			bot.applicationCommandsConfig.Music.Name {
 			// NOTE: recieved interaction is a music slash command
 			bot.onMusicSlashCommand(s, i)
 		} else if i.ApplicationCommandData().Name ==
-			bot.slashCommandsConfig.Help.Name {
+			bot.applicationCommandsConfig.Help.Name {
 			// NOTE: recieved interaction is a help slash command
 			bot.onHelpSlashCommand(s, i)
+		} else if i.ApplicationCommandData().Name ==
+			bot.applicationCommandsConfig.AddSongs.Name {
+			// NOTE: recieved interaction is a add songs message command
+			bot.onAddSongsComamnd(s, i)
 		}
 	} else if i.Type == discordgo.InteractionMessageComponent {
 

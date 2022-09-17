@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/google/uuid"
 )
 
 // NewQueue constructs an object that represents a music queue
@@ -23,6 +24,37 @@ func (service *Service) NewQueue(clientID string, guildID string, messageID stri
 	queue.Options = make([]model.QueueOption, 0)
 	queue.Songs = make([]*model.Song, 0)
 	return queue
+}
+
+// GetQueueComponents returns all the required discord components
+// for the provided queue. The components depend on the queue's
+// options and songs.
+func (service *Service) GetQueueComponents(queue *model.Queue) []discordgo.MessageComponent {
+	return []discordgo.MessageComponent{}
+}
+
+func (service *Service) GetAddSongsModal(queue *model.Queue) *discordgo.ModalSubmitInteractionData {
+	textInput := discordgo.TextInput{
+		CustomID: uuid.NewString(),
+		Label:    "Enter names or urls to youtube songs",
+		Placeholder: `song name or url #1
+song name or url  #2
+        ...`,
+		Style:     discordgo.TextInputParagraph,
+		MinLength: 1,
+		MaxLength: 4000,
+		Required:  true,
+	}
+	return &discordgo.ModalSubmitInteractionData{
+		CustomID: uuid.NewString(),
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					textInput,
+				},
+			},
+		},
+	}
 }
 
 // MapQueueToEmbed maps the provided queue to a message embed.

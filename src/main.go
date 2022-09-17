@@ -20,10 +20,10 @@ type MusicBot struct {
 }
 
 type Configuration struct {
-	LogLevel      log.Level                `yaml:"LogLevel" validate:"required"`
-	DiscordToken  string                   `yaml:"DiscordToken" validate:"required"`
-	Datastore     *datastore.Configuration `yaml:"Datastore" validate:"required"`
-	SlashCommands *bot.SlashCommandsConfig `yaml:"SlashCommands" validate:"required"`
+	LogLevel      log.Level                      `yaml:"LogLevel" validate:"required"`
+	DiscordToken  string                         `yaml:"DiscordToken" validate:"required"`
+	Datastore     *datastore.Configuration       `yaml:"Datastore" validate:"required"`
+	SlashCommands *bot.ApplicationCommandsConfig `yaml:"ApplicationCommands" validate:"required"`
 }
 
 // initBot creates a new bot object with the provided config,

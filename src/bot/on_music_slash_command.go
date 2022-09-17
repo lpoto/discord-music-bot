@@ -46,14 +46,17 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	)
 	embed := bot.service.MapQueueToEmbed(
 		queue,
-		bot.slashCommandsConfig.Music.Description,
+		"To add songs: [right-click] -> Apps -> "+
+			bot.applicationCommandsConfig.AddSongs.Name,
 	)
+	components := bot.service.GetQueueComponents(queue)
 	err := s.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Embeds: []*discordgo.MessageEmbed{embed},
+				Embeds:     []*discordgo.MessageEmbed{embed},
+				Components: components,
 			},
 		})
 	if err != nil {
@@ -75,5 +78,22 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	queue.ChannelID = msg.ChannelID
 	if _, err := bot.datastore.PersistQueue(queue); err != nil {
 		bot.Errorf("Error when persisting a new queue: %v", err)
+		return
 	}
+	cmd := &discordgo.ApplicationCommand{
+		ID:   queue.MessageID,
+		Name: bot.applicationCommandsConfig.AddSongs.Name,
+		Type: discordgo.MessageApplicationCommand,
+	}
+	if _, err := s.ApplicationCommandCreate(
+		s.State.User.ID,
+		queue.GuildID,
+		cmd,
+	); err != nil {
+		bot.Errorf(
+			"Error when creating 'add songs' application command: %v",
+			err,
+		)
+	}
+
 }
