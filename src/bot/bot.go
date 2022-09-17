@@ -5,8 +5,6 @@ import (
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
-	"errors"
-	"fmt"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -18,26 +16,12 @@ type Bot struct {
 	datastore                 *datastore.Datastore
 	youtubeClient             *youtube.YoutubeClient
 	applicationCommandsConfig *ApplicationCommandsConfig
-}
-
-type ChatCommandConfig struct {
-	Name        string `yaml:"Name" validate:"required"`
-	Description string `yaml:"Description" validate:"required"`
-}
-
-type MessageCommandConfig struct {
-	Name string `yaml:"Name" validate:"required"`
-}
-
-type ApplicationCommandsConfig struct {
-	Music    *ChatCommandConfig    `yaml:"Music" validate:"required"`
-	Help     *ChatCommandConfig    `yaml:"Help" validate:"required"`
-	AddSongs *MessageCommandConfig `yaml:"AddSongs" validate:"required"`
+	componentsConfig          *ComponentsConfig
 }
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, datastoreConfig *datastore.Configuration) *Bot {
+func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, componentsConfig *ComponentsConfig, datastoreConfig *datastore.Configuration) *Bot {
 	l := log.New()
 	l.SetLevel(logLevel)
 	l.Debug("Creating Discord music bot ...")
@@ -48,6 +32,7 @@ func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, da
 		datastore:                 datastore.NewDatastore(datastoreConfig),
 		youtubeClient:             youtube.NewYoutubeClient(logLevel),
 		applicationCommandsConfig: appCommandsConfig,
+		componentsConfig:          componentsConfig,
 	}
 	l.Info("Discord music bot created")
 	return bot
@@ -134,83 +119,6 @@ func (bot *Bot) setHandlers(session *discordgo.Session) {
 	session.AddHandler(bot.onBulkMessageDelete)
 	session.AddHandler(bot.onVoiceStateUpdate)
 	session.AddHandler(bot.onInteractionCreate)
-}
-
-// setSlashCommands deletes all of the bot's previously
-// registers slash commands, then registers the new
-// music and help slash commands
-func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
-	bot.Debug("Registering global application commands ...")
-	// NOTE: guildID  is an empty string, so the commands are
-	// global
-	guildID := ""
-	// fetch all global application commands defined by
-	// the bot user
-	registeredCommands, err := session.ApplicationCommands(
-		session.State.User.ID,
-		guildID,
-	)
-	if err != nil {
-		e := errors.New(
-			fmt.Sprintf(
-				"Could not fetch global application commands: %v",
-				err,
-			),
-		)
-		return e
-	}
-	// delete the fetched global application commands
-	for _, v := range registeredCommands {
-		bot.WithField("Name", v.Name).Trace(
-			"Deleting global application command",
-		)
-		if err := session.ApplicationCommandDelete(
-			session.State.User.ID,
-			guildID,
-			v.ID,
-		); err != nil {
-			e := errors.New(
-				fmt.Sprintf(
-					"Could not delete global application command '%v': %v",
-					v.Name,
-					err,
-				),
-			)
-			return e
-		}
-	}
-	commands := []*discordgo.ApplicationCommand{
-		{
-			Name:        bot.applicationCommandsConfig.Music.Name,
-			Description: bot.applicationCommandsConfig.Music.Description,
-		},
-		{
-			Name:        bot.applicationCommandsConfig.Help.Name,
-			Description: bot.applicationCommandsConfig.Help.Description,
-		},
-	}
-	// register the global application commands
-	for _, cmd := range commands {
-		bot.WithField("Name", cmd.Name).Trace(
-			"Registering global application command",
-		)
-		if _, err := session.ApplicationCommandCreate(
-			session.State.User.ID,
-			guildID,
-			cmd,
-		); err != nil {
-			e := errors.New(
-				fmt.Sprintf(
-					"Could not create global application command '%v': %v",
-					cmd.Name,
-					err,
-				),
-			)
-			return e
-		}
-	}
-	bot.Debug("Successfully registered global application commands")
-	return nil
 }
 
 // Removes all queue messages from datastore, for which the

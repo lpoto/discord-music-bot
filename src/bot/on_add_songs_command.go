@@ -1,6 +1,9 @@
 package bot
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"github.com/bwmarrin/discordgo"
+	"github.com/google/uuid"
+)
 
 // onAddSongsComamnd is a handler function called when the bot's
 // add songs command is called from queue message's context menu.
@@ -9,11 +12,7 @@ import "github.com/bwmarrin/discordgo"
 // message command's name.
 func (bot *Bot) onAddSongsComamnd(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Add songs message command")
-	q, _ := bot.datastore.FindQueue(
-		s.State.User.ID,
-		i.GuildID,
-	)
-	m := bot.service.GetAddSongsModal(q)
+	m := bot.getModal(bot.addSongsComponents())
 	if err := s.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{
@@ -30,4 +29,19 @@ func (bot *Bot) onAddSongsComamnd(s *discordgo.Session, i *discordgo.Interaction
 			err,
 		)
 	}
+}
+
+func (bot *Bot) addSongsComponents() []discordgo.MessageComponent {
+	textInput := discordgo.TextInput{
+		CustomID: uuid.NewString(),
+		Label:    "Enter names or urls to youtube songs",
+		Placeholder: `song name or url #1
+song name or url  #2
+        ...`,
+		Style:     discordgo.TextInputParagraph,
+		MinLength: 1,
+		MaxLength: 4000,
+		Required:  true,
+	}
+	return []discordgo.MessageComponent{textInput}
 }

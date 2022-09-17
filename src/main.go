@@ -20,10 +20,11 @@ type MusicBot struct {
 }
 
 type Configuration struct {
-	LogLevel      log.Level                      `yaml:"LogLevel" validate:"required"`
-	DiscordToken  string                         `yaml:"DiscordToken" validate:"required"`
-	Datastore     *datastore.Configuration       `yaml:"Datastore" validate:"required"`
-	SlashCommands *bot.ApplicationCommandsConfig `yaml:"ApplicationCommands" validate:"required"`
+	LogLevel            log.Level                      `yaml:"LogLevel" validate:"required"`
+	DiscordToken        string                         `yaml:"DiscordToken" validate:"required"`
+	Datastore           *datastore.Configuration       `yaml:"Datastore" validate:"required"`
+	ApplicationCommands *bot.ApplicationCommandsConfig `yaml:"ApplicationCommands" validate:"required"`
+	Components          *bot.ComponentsConfig          `yaml:"Components" validate:"required"`
 }
 
 // initBot creates a new bot object with the provided config,
@@ -31,7 +32,8 @@ type Configuration struct {
 func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 	bot := bot.NewBot(
 		configuration.LogLevel,
-		configuration.SlashCommands,
+		configuration.ApplicationCommands,
+		configuration.Components,
 		configuration.Datastore,
 	)
 	if err := bot.Init(ctx); err != nil {

@@ -46,17 +46,15 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	)
 	embed := bot.service.MapQueueToEmbed(
 		queue,
-		"To add songs: [right-click] -> Apps -> "+
-			bot.applicationCommandsConfig.AddSongs.Name,
+		bot.applicationCommandsConfig.Music.Description,
 	)
-	components := bot.service.GetQueueComponents(queue)
 	err := s.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Embeds:     []*discordgo.MessageEmbed{embed},
-				Components: components,
+				Components: bot.getMusicQueueComponents(queue),
 			},
 		})
 	if err != nil {
@@ -95,5 +93,4 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 			err,
 		)
 	}
-
 }
