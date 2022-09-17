@@ -33,7 +33,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		} else if i.ApplicationCommandData().Name ==
 			bot.applicationCommandsConfig.AddSongs.Name {
 			// NOTE: recieved interaction is a add songs message command
-			bot.onAddSongsComamnd(s, i)
+			bot.onAddSongsCommand(s, i)
 		}
 	} else if i.Type == discordgo.InteractionMessageComponent {
 

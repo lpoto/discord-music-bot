@@ -34,9 +34,9 @@ func (builder *Builder) NewQueue(clientID string, guildID string, messageID stri
 // a text input, through which the songs may be added.
 func (builder *Builder) MapQueueToEmbed(queue *model.Queue, footer string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
-		Title:       "Music queue",
+		Title:       builder.Config.Title,
 		Fields:      make([]*discordgo.MessageEmbedField, 0),
-		Description: "",
+		Description: builder.Config.Description,
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: footer,
 		},
@@ -106,18 +106,18 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
-				builder.newButton(builder.components.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
-				builder.newButton(builder.components.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
-				builder.newButton(builder.components.Previous, discordgo.SecondaryButton, true),
-				builder.newButton(builder.components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil),
+				builder.newButton(builder.Config.Components.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
+				builder.newButton(builder.Config.Components.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
+				builder.newButton(builder.Config.Components.Previous, discordgo.SecondaryButton, true),
+				builder.newButton(builder.Config.Components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil),
 			},
 		},
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
-				builder.newButton(builder.components.AddSongs, discordgo.SecondaryButton, false),
-				builder.newButton(builder.components.Loop, loopStyle, false),
-				builder.newButton(builder.components.Pause, pauseStyle, queue.HeadSong != nil),
-				builder.newButton(builder.components.Replay, discordgo.SecondaryButton, false),
+				builder.newButton(builder.Config.Components.AddSongs, discordgo.SecondaryButton, false),
+				builder.newButton(builder.Config.Components.Loop, loopStyle, false),
+				builder.newButton(builder.Config.Components.Pause, pauseStyle, queue.HeadSong == nil),
+				builder.newButton(builder.Config.Components.Replay, discordgo.SecondaryButton, queue.HeadSong == nil),
 			},
 		},
 	}
@@ -134,9 +134,15 @@ func (builder *Builder) QueueHasOption(queue *model.Queue, option model.QueueOpt
 	return false
 }
 
+//GetButtonLabelFromComponentData returns the button's label from
+//it's customID
+func (builder *Builder) GetButtonLabelFromComponentData(data discordgo.MessageComponentInteractionData) string {
+	return strings.Split(data.CustomID, "<split>")[0]
+}
+
 func (builder *Builder) newButton(label string, style discordgo.ButtonStyle, disabled bool) discordgo.Button {
 	return discordgo.Button{
-		CustomID: uuid.NewString(),
+		CustomID: label + "<split>" + uuid.NewString(),
 		Label:    label,
 		Style:    style,
 		Disabled: disabled,

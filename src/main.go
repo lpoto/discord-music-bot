@@ -24,7 +24,7 @@ type Configuration struct {
 	LogLevel            log.Level                      `yaml:"LogLevel" validate:"required"`
 	DiscordToken        string                         `yaml:"DiscordToken" validate:"required"`
 	Datastore           *datastore.Configuration       `yaml:"Datastore" validate:"required"`
-	Components          *builder.ComponentsConfig      `yaml:"Components" validate:"required"`
+	QueueBuilder          *builder.Configuration      `yaml:"QueueBuilder" validate:"required"`
 	ApplicationCommands *bot.ApplicationCommandsConfig `yaml:"ApplicationCommands" validate:"required"`
 }
 
@@ -34,7 +34,7 @@ func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 	bot := bot.NewBot(
 		configuration.LogLevel,
 		configuration.ApplicationCommands,
-		configuration.Components,
+		configuration.QueueBuilder,
 		configuration.Datastore,
 	)
 	if err := bot.Init(ctx); err != nil {

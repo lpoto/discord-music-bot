@@ -22,7 +22,7 @@ type Bot struct {
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, components *builder.ComponentsConfig, datastoreConfig *datastore.Configuration) *Bot {
+func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration) *Bot {
 	l := log.New()
 	l.SetLevel(logLevel)
 	l.Debug("Creating Discord music bot ...")
@@ -30,7 +30,7 @@ func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, co
 	bot := &Bot{
 		Logger:                    l,
 		service:                   service.NewService(),
-		builder:                   builder.NewBuilder(components),
+		builder:                   builder.NewBuilder(builderConfig),
 		datastore:                 datastore.NewDatastore(datastoreConfig),
 		youtubeClient:             youtube.NewYoutubeClient(logLevel),
 		applicationCommandsConfig: appCommandsConfig,

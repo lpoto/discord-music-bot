@@ -18,20 +18,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		s.State.User.ID,
 		i.GuildID,
 	); err == nil {
-		if err := s.InteractionRespond(
-			i.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "A music queue already exists in this server!",
-					Flags:   1 << 6, // this flag marks msg ephemeral
-				},
-			}); err != nil {
-			bot.WithField("GuildID", i.GuildID).Errorf(
-				"Error when responding to music command: %v",
-				err,
-			)
-		}
+		bot.onAddSongsCommand(s, i)
 		return
 	} else {
 		log.Println(err)

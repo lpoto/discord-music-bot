@@ -10,7 +10,7 @@ import (
 // This is called from INTERACTION_CREATE event when
 // the interaction's command data name matches the add songs
 // message command's name.
-func (bot *Bot) onAddSongsComamnd(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Add songs message command")
 	m := bot.getModal(bot.addSongsComponents())
 	if err := s.InteractionRespond(
@@ -32,16 +32,17 @@ func (bot *Bot) onAddSongsComamnd(s *discordgo.Session, i *discordgo.Interaction
 }
 
 func (bot *Bot) addSongsComponents() []discordgo.MessageComponent {
-	textInput := discordgo.TextInput{
-		CustomID: uuid.NewString(),
-		Label:    "Enter names or urls to youtube songs",
-		Placeholder: `song name or url #1
+	placeholder := `song name or url #1
 song name or url  #2
-        ...`,
-		Style:     discordgo.TextInputParagraph,
-		MinLength: 1,
-		MaxLength: 4000,
-		Required:  true,
+...`
+	textInput := discordgo.TextInput{
+		CustomID:    uuid.NewString(),
+		Label:       "Enter names or urls of youtube songs",
+		Placeholder: placeholder,
+		Style:       discordgo.TextInputParagraph,
+		MinLength:   1,
+		MaxLength:   4000,
+		Required:    true,
 	}
 	return []discordgo.MessageComponent{textInput}
 }

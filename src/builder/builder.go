@@ -1,7 +1,13 @@
 package builder
 
 type Builder struct {
-	components *ComponentsConfig
+	Config *Configuration
+}
+
+type Configuration struct {
+	Title       string            `yaml:"Title" validate:"required"`
+	Description string            `yaml:"Description"`
+	Components  *ComponentsConfig `yaml:"Components" validate:"required"`
 }
 
 type ComponentsConfig struct {
@@ -16,8 +22,7 @@ type ComponentsConfig struct {
 }
 
 // NewBuilder constructs an object that handles building
-// the queue's embed, components, ... based on it's current
-// state
-func NewBuilder(components *ComponentsConfig) *Builder {
-	return &Builder{components}
+// the queue's embed, components, ... based on it's current state
+func NewBuilder(config *Configuration) *Builder {
+	return &Builder{config}
 }
