@@ -207,7 +207,7 @@ func (datastore *Datastore) FindAllQueues() ([]*model.Queue, error) {
 				)
 			}
 			queue.Options = model.StringSliceToQueueOptions(opts)
-            queues = append(queues, queue)
+			queues = append(queues, queue)
 		}
 	}
 	datastore.Trace("Successfully found all the queues")

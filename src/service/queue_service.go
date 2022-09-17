@@ -44,9 +44,12 @@ func (service *Service) MapQueueToEmbed(queue *model.Queue, footer string) *disc
 	spacer2 := spacer + "ㅤ"
 	if queue.HeadSong != nil {
 		embed.Color = queue.HeadSong.Color
+		// TODO: add song loader
+		// TODO: wrap head song to lines of length 30
+		// TODO: use canvas to shorten song names
 		headSong := queue.HeadSong.Info.TrimmedName
 		headSong = fmt.Sprintf(
-			"%s**%s**\u3000%s%s",
+			"%s\n**%s**\u3000%s\n%s",
 			spacer,
 			queue.HeadSong.Info.DurationString,
 			headSong,

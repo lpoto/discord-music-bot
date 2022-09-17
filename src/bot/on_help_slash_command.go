@@ -16,7 +16,7 @@ func (bot *Bot) onHelpSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 		},
 	}); err != nil {
 		bot.WithField("GuildID", i.GuildID).Errorf(
-			"Error when responding to help command",
+            "Error when responding to help command: %v",
 			err,
 		)
 	}

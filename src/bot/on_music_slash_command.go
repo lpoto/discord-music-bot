@@ -28,7 +28,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 				},
 			}); err != nil {
 			bot.WithField("GuildID", i.GuildID).Errorf(
-				"Error when responding to music command",
+				"Error when responding to music command: %v",
 				err,
 			)
 		}
@@ -69,6 +69,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 			"Error when fetching interaction response message: %v",
 			err,
 		)
+		return
 	}
 	queue.MessageID = msg.ID
 	queue.ChannelID = msg.ChannelID
