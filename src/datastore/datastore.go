@@ -13,40 +13,43 @@ import (
 type Datastore struct {
 	*log.Logger
 	*sql.DB
+	config *Configuration
+	idx    int
 }
 
 type Configuration struct {
-	Database string `yaml:"Database" validate:"required"`
-	Host     string `yaml:"Host" validate:"required"`
-	Port     int    `yaml:"Port" validate:"required"`
-	User     string `yaml:"User" validate:"required"`
-	Password string `yaml:"Password" validate:"required"`
+	LogLevel log.Level `yaml:"LogLevel" validate:"required"`
+	Database string    `yaml:"Database" validate:"required"`
+	Host     string    `yaml:"Host" validate:"required"`
+	Port     int       `yaml:"Port" validate:"required"`
+	User     string    `yaml:"User" validate:"required"`
+	Password string    `yaml:"Password" validate:"required"`
 }
 
 // NewDatastore constructs an object that handles persisting
 // the models to the postgres database and recieving them from it.
 // It does not implement any of the bot's logics.
-func NewDatastore(logLevel log.Level) *Datastore {
+func NewDatastore(config *Configuration) *Datastore {
 	l := log.New()
-	l.SetLevel(logLevel)
+	l.SetLevel(config.LogLevel)
 	l.Debug("Datastore created")
-	return &Datastore{Logger: l}
+	return &Datastore{Logger: l, config: config, idx: 0}
 }
 
 // Connect opens a new postges connection based on the
 // provided database configuration
-func (datastore *Datastore) Connect(configuration *Configuration) error {
+func (datastore *Datastore) Connect() error {
 	datastore.Info("Oppening postgres connection ...")
 
 	db, err := sql.Open(
 		"postgres",
 		fmt.Sprintf(
 			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			configuration.Host,
-			configuration.Port,
-			configuration.User,
-			configuration.Password,
-			configuration.Database,
+			datastore.config.Host,
+			datastore.config.Port,
+			datastore.config.User,
+			datastore.config.Password,
+			datastore.config.Database,
 		),
 	)
 	if err != nil {
@@ -77,6 +80,12 @@ func (datastore *Datastore) Init(ctx context.Context) error {
 
 	datastore.Info("Datastore initialized")
 	return nil
+}
+
+func (datastore *Datastore) getIdx() int {
+	i := datastore.idx
+	datastore.idx = ((datastore.idx + 1) % 100)
+	return i
 }
 
 func (datastore *Datastore) escapeSingleQuotes(s string) string {

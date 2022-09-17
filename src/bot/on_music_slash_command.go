@@ -18,20 +18,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		s.State.User.ID,
 		i.GuildID,
 	); err == nil {
-		if err := s.InteractionRespond(
-			i.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "A music queue already exists in this server!",
-					Flags:   1 << 6, // this flag marks msg ephemeral
-				},
-			}); err != nil {
-			bot.WithField("GuildID", i.GuildID).Errorf(
-				"Error when responding to music command: %v",
-				err,
-			)
-		}
+		bot.onAddSongsCommand(s, i)
 		return
 	} else {
 		log.Println(err)
@@ -39,21 +26,22 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 
 	// Construct a new queue, send it to the channel
 	// and persist it in the datastore
-	queue := bot.service.NewQueue(
+	queue := bot.builder.NewQueue(
 		s.State.User.ID,
 		i.GuildID,
 		"", "",
 	)
-	embed := bot.service.MapQueueToEmbed(
+	embed := bot.builder.MapQueueToEmbed(
 		queue,
-		bot.slashCommandsConfig.Music.Description,
+		bot.applicationCommandsConfig.Music.Description,
 	)
 	err := s.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Embeds: []*discordgo.MessageEmbed{embed},
+				Embeds:     []*discordgo.MessageEmbed{embed},
+				Components: bot.builder.GetMusicQueueComponents(queue),
 			},
 		})
 	if err != nil {
@@ -75,5 +63,6 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	queue.ChannelID = msg.ChannelID
 	if _, err := bot.datastore.PersistQueue(queue); err != nil {
 		bot.Errorf("Error when persisting a new queue: %v", err)
+		return
 	}
 }

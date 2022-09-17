@@ -9,15 +9,9 @@ import (
 type QueueOption string
 
 const (
-	Loop            QueueOption = "loop"
-	Paused          QueueOption = "paused"
-	Expanded        QueueOption = "expanded"
-	Editing         QueueOption = "editing"
-	StopSelected    QueueOption = "stop_selected"
-	ForwardSelected QueueOption = "forward_selected"
-	RemoveSelected  QueueOption = "remove_selected"
-	ClearSelected   QueueOption = "clear_selected"
-	Test            QueueOption = "test"
+	Loop   QueueOption = "loop"
+	Paused QueueOption = "paused"
+	Test   QueueOption = "test"
 )
 
 type Queue struct {
@@ -33,6 +27,9 @@ type Queue struct {
 	Size      int           `json:"size"`
 }
 
+// ParseQueueOption converts the provided
+// string to QueueOption if s is one of
+// the possible options
 func ParseQueueOption(s string) (QueueOption, error) {
 	opts := GetQueueOptions()
 	s2 := strings.ToLower(s)
@@ -49,19 +46,17 @@ func ParseQueueOption(s string) (QueueOption, error) {
 	)
 }
 
+// GetQueueOptions returns a slice of all
+// the possible queue options
 func GetQueueOptions() []QueueOption {
 	return []QueueOption{
 		Loop,
 		Paused,
-		Expanded,
-		Editing,
-		StopSelected,
-		ForwardSelected,
-		RemoveSelected,
-		ClearSelected,
 	}
 }
 
+// QueueOptionsToStringSlice converts the
+// provided slice of QueueOptions to a slice of strings
 func QueueOptionsToStringSlice(opts []QueueOption) []string {
 	x := make([]string, 0, len(opts))
 	for _, o := range opts {
@@ -70,6 +65,8 @@ func QueueOptionsToStringSlice(opts []QueueOption) []string {
 	return x
 }
 
+// QueueOption converts the provided slice of string to
+// a slice of QueueOptions
 func StringSliceToQueueOptions(opts []string) []QueueOption {
 	x := make([]QueueOption, 0, len(opts))
 	for _, o := range opts {
