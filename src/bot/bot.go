@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
@@ -13,26 +14,26 @@ import (
 type Bot struct {
 	*log.Logger
 	service                   *service.Service
+	builder                   *builder.Builder
 	datastore                 *datastore.Datastore
 	youtubeClient             *youtube.YoutubeClient
 	applicationCommandsConfig *ApplicationCommandsConfig
-	componentsConfig          *ComponentsConfig
 }
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, componentsConfig *ComponentsConfig, datastoreConfig *datastore.Configuration) *Bot {
+func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, components *builder.ComponentsConfig, datastoreConfig *datastore.Configuration) *Bot {
 	l := log.New()
 	l.SetLevel(logLevel)
 	l.Debug("Creating Discord music bot ...")
 
 	bot := &Bot{
 		Logger:                    l,
-		service:                   service.NewService(logLevel),
+		service:                   service.NewService(),
+		builder:                   builder.NewBuilder(components),
 		datastore:                 datastore.NewDatastore(datastoreConfig),
 		youtubeClient:             youtube.NewYoutubeClient(logLevel),
 		applicationCommandsConfig: appCommandsConfig,
-		componentsConfig:          componentsConfig,
 	}
 	l.Info("Discord music bot created")
 	return bot

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"discord-music-bot/bot"
+	"discord-music-bot/builder"
 	"discord-music-bot/config"
 	"discord-music-bot/datastore"
 	"flag"
@@ -23,8 +24,8 @@ type Configuration struct {
 	LogLevel            log.Level                      `yaml:"LogLevel" validate:"required"`
 	DiscordToken        string                         `yaml:"DiscordToken" validate:"required"`
 	Datastore           *datastore.Configuration       `yaml:"Datastore" validate:"required"`
+	Components          *builder.ComponentsConfig      `yaml:"Components" validate:"required"`
 	ApplicationCommands *bot.ApplicationCommandsConfig `yaml:"ApplicationCommands" validate:"required"`
-	Components          *bot.ComponentsConfig          `yaml:"Components" validate:"required"`
 }
 
 // initBot creates a new bot object with the provided config,

@@ -45,3 +45,16 @@ song name or url  #2
 	}
 	return []discordgo.MessageComponent{textInput}
 }
+
+// getModal constructs a modal submit interaction data
+// with the provided components
+func (bot *Bot) getModal(components []discordgo.MessageComponent) *discordgo.ModalSubmitInteractionData {
+	return &discordgo.ModalSubmitInteractionData{
+		CustomID: uuid.NewString(),
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: components,
+			},
+		},
+	}
+}

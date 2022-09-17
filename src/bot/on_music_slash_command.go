@@ -39,12 +39,12 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 
 	// Construct a new queue, send it to the channel
 	// and persist it in the datastore
-	queue := bot.service.NewQueue(
+	queue := bot.builder.NewQueue(
 		s.State.User.ID,
 		i.GuildID,
 		"", "",
 	)
-	embed := bot.service.MapQueueToEmbed(
+	embed := bot.builder.MapQueueToEmbed(
 		queue,
 		bot.applicationCommandsConfig.Music.Description,
 	)
@@ -54,7 +54,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Embeds:     []*discordgo.MessageEmbed{embed},
-				Components: bot.getMusicQueueComponents(queue),
+				Components: bot.builder.GetMusicQueueComponents(queue),
 			},
 		})
 	if err != nil {
