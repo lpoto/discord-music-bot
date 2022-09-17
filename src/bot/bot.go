@@ -18,7 +18,6 @@ type Bot struct {
 	datastore           *datastore.Datastore
 	youtubeClient       *youtube.YoutubeClient
 	slashCommandsConfig *SlashCommandsConfig
-	datastoreConfig     *datastore.Configuration
 }
 
 type SlashCommandConfig struct {
@@ -41,10 +40,9 @@ func NewBot(logLevel log.Level, slashSlashCommandsConfig *SlashCommandsConfig, d
 	bot := &Bot{
 		Logger:              l,
 		service:             service.NewService(logLevel),
-		datastore:           datastore.NewDatastore(logLevel),
+		datastore:           datastore.NewDatastore(datastoreConfig),
 		youtubeClient:       youtube.NewYoutubeClient(logLevel),
 		slashCommandsConfig: slashSlashCommandsConfig,
-		datastoreConfig:     datastoreConfig,
 	}
 	l.Info("Discord music bot created")
 	return bot
@@ -57,7 +55,7 @@ func NewBot(logLevel log.Level, slashSlashCommandsConfig *SlashCommandsConfig, d
 func (bot *Bot) Init(ctx context.Context) error {
 	bot.Debug("Initializing the bot ...")
 
-	if err := bot.datastore.Connect(bot.datastoreConfig); err != nil {
+	if err := bot.datastore.Connect(); err != nil {
 		return err
 	}
 	if err := bot.datastore.Init(ctx); err != nil {

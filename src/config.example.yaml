@@ -1,5 +1,5 @@
 MusicBot:
-  LogLevel: TRACE
+  LogLevel: TRACE # TRACE > DEBUG > INFO > WARN > ERROR
   DiscordToken: <discord-bot-token>
   SlashCommands:
     Music:
@@ -9,6 +9,7 @@ MusicBot:
       Name: "help"
       Description: "Info on how to use the music bot"
   Datastore:
+    LogLevel: TRACE
     Database: discord_bot
     Host: localhost
     Port: 5432
