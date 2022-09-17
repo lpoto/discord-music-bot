@@ -66,7 +66,7 @@ func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error
 	datastore.WithFields(log.Fields{
 		"ClientID": queue.ClientID,
 		"GuildID":  queue.GuildID,
-	}).Trace("[%d]Start: Update queue", i)
+	}).Tracef("[%d]Start: Update queue", i)
 
 	newQueue := &model.Queue{}
 	opts := make([]string, 0)
