@@ -7,9 +7,8 @@ import (
 
 // onAddSongsComamnd is a handler function called when the bot's
 // add songs command is called from queue message's context menu.
-// This is called from INTERACTION_CREATE event when
-// the interaction's command data name matches the add songs
-// message command's name.
+// This is called from AddSongs button click or music slash command
+// if the queue already exists in the server
 func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Add songs message command")
 	m := bot.getModal(bot.addSongsComponents())
