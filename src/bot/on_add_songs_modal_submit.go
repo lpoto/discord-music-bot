@@ -1,9 +1,7 @@
 package bot
 
 import (
-	"discord-music-bot/client/youtube"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -29,13 +27,13 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	}
 
 	// There is a limit for a number of songs that may be queried at once
-	if len(queries) > youtube.MaxSongQueries {
+	if len(queries) > bot.youtubeClient.Config.MaxParallelQueries {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: fmt.Sprintf(
 					"Cannot query more than %d songs at once",
-					youtube.MaxSongQueries,
+					bot.youtubeClient.Config.MaxParallelQueries,
 				),
 				Flags: 1 << 6, // Ephemeral
 			},
@@ -56,7 +54,5 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 
 	// a positive number of songs has been found, save them to the queue
 	// and update it
-	for _, s := range songs {
-		log.Println(s)
-	}
+
 }

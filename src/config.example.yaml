@@ -1,13 +1,30 @@
 MusicBot:
-  LogLevel: TRACE # TRACE > DEBUG > INFO > WARN > ERROR
-  DiscordToken: <discord-bot-token>
-  SlashCommands:
+  LogLevel: TRACE
+  DiscordToken: discord-bot-token
+  ApplicationCommands:
     Music:
-      Name: "music"
-      Description: "Starts a new music queue"
+      Name: music
+      Description: "Life is one grand, sweet song so start the music."
     Help:
-      Name: "help"
-      Description: "Info on how to use the music bot"
+      Name: help
+      Description: "Information about the commands"
+    AddSongs:
+      Name: Add songs
+  QueueBuilder:
+    Title: Music Queue
+    Description: ""
+    Components:
+      Backward: "<"
+      Forward: ">"
+      Skip: ">>"
+      Previous: "<<"
+      Pause: "ll"
+      Replay: "↺"
+      Loop: "Loop"
+      AddSongs: "Add"
+  Youtube:
+    LogLevel: TRACE
+    MaxParallelQueries: 100
   Datastore:
     LogLevel: TRACE
     Database: discord_bot

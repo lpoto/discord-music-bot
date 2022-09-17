@@ -5,10 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"sync"
-)
-
-const (
-	MaxSongQueries int = 100
+	"time"
 )
 
 // SearchSongs searches the provided queries on the youtube and
@@ -16,12 +13,16 @@ const (
 // search result. If the query is a youtube video url, the url is used
 // for fetching the info.
 func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
-	i := client.GetIdx()
+	i, t := client.GetIdx(), time.Now()
 
-	client.Tracef("Youtube start %d: Search %d song/s on Youtube", i, len(queries))
+	client.Tracef("[%d]Youtube start: Search %d song/s on Youtube", i, len(queries))
 
-	if len(queries) > MaxSongQueries {
-		client.Tracef("Youtube error %d: Tried to query more than %d songs", i, MaxSongQueries)
+	if len(queries) > client.Config.MaxParallelQueries {
+		client.Tracef(
+			"[%d]Youtube error: Tried to query more than %d songs",
+			i,
+			client.Config.MaxParallelQueries,
+		)
 		return []*model.SongInfo{}
 	}
 	added := make(map[string]struct{})
@@ -40,7 +41,7 @@ func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
 			}()
 			info, err := client.searchSong(query)
 			if err != nil {
-				client.Tracef("Youtube error %d: %v", i, err)
+				client.Tracef("[%d]Youtube error: %v", i, err)
 				return
 			}
 			select {
@@ -66,10 +67,14 @@ func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
 				break songLoop
 			}
 		}
-		client.Tracef("Youtube done  %d: Found %d songs", i, len(songs))
+		client.WithField(
+			"Latency", time.Since(t),
+		).Tracef("[%d]Youtube done : Found %d song/s", i, len(songs))
 		return songs
 	}
-	client.Tracef("Youtube done  %d: Found no songs", i)
+	client.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[%d]Youtube done : Found no songs", i)
 	return []*model.SongInfo{}
 }
 
