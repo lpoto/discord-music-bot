@@ -83,7 +83,7 @@ func (bot *Bot) Run(token string) {
 
 	// Register slash commands required by the bot
 	if err := bot.setSlashCommands(session); err != nil {
-		bot.Panic(err)
+		bot.Warn(err)
 	}
 
 	// check if any queues should be removed from datastore

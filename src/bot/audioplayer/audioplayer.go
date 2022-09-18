@@ -16,6 +16,7 @@ type AudioPlayer struct {
 	guildID          string
 	session          *discordgo.Session
 	streamingSession *dca.StreamingSession
+	encodingSession  *dca.EncodeSession
 	streaming        bool
 }
 
@@ -27,6 +28,7 @@ func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
 		guildID:          guildID,
 		session:          session,
 		streamingSession: nil,
+		encodingSession:  nil,
 		streaming:        false,
 	}
 }
@@ -35,6 +37,14 @@ func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
 // streaming some audio, false otherwise
 func (ap *AudioPlayer) IsPlaying() bool {
 	return ap.streaming
+}
+
+// Stop stops the current stream, if there is any
+func (ap *AudioPlayer) Stop() {
+	if ap.encodingSession == nil {
+		return
+	}
+	ap.encodingSession.Stop()
 }
 
 // Play starts playing the provided song in the bot's
@@ -64,15 +74,18 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	options.Bitrate = 96
 	options.Application = "lowdelay"
 
-	encodingSession, err := dca.EncodeFile(url, options)
+	ap.encodingSession, err = dca.EncodeFile(url, options)
 	if err != nil {
 		return err
 	}
-	defer encodingSession.Cleanup()
+	defer func() {
+		ap.encodingSession.Cleanup()
+		ap.encodingSession = nil
+	}()
 
 	streamingDone := make(chan error)
 	ap.streamingSession = dca.NewStream(
-		encodingSession,
+		ap.encodingSession,
 		voiceConnection,
 		streamingDone,
 	)
@@ -102,7 +115,7 @@ func (ap *AudioPlayer) Unpause() {
 	if ap.streamingSession == nil {
 		return
 	}
-	ap.streamingSession.SetPaused(true)
+	ap.streamingSession.SetPaused(false)
 }
 
 // PlaybackPosition returns the duration of the currently playing

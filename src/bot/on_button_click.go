@@ -76,6 +76,15 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 		return
 	}
 	bot.onUpdateQueueFromInteraction(s, i)
+
+	// Pause the currently playing song, if any
+	if ap, ok := bot.audioplayers[i.GuildID]; ok {
+		if bot.builder.QueueHasOption(queue, model.Paused) {
+			ap.Pause()
+		} else {
+			ap.Unpause()
+		}
+	}
 }
 
 // loopButtonClick adds or removes the queue's Loop option, updates it
