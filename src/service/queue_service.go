@@ -2,7 +2,6 @@ package service
 
 import (
 	"discord-music-bot/model"
-	"math"
 )
 
 // IncrementQueueOffset increments the provided queue's
@@ -22,12 +21,12 @@ func (service *Service) IncrementQueueOffset(queue *model.Queue) {
 func (service *Service) DecrementQueueOffset(queue *model.Queue) {
 	queue.Offset -= queue.Limit
 	if queue.Offset < 0 {
-		y := queue.Size
-		if queue.Size%queue.Limit == 0 {
-			y = queue.Size - 1
+		i := queue.Size - 1
+		j := i % queue.Limit
+		if j == 0 {
+			j = queue.Limit
 		}
-		x := int(math.Round(float64(y) / float64(queue.Limit)))
-		queue.Offset = x * queue.Limit
+		queue.Offset = i - j
 	}
 }
 
