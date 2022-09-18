@@ -1,8 +1,10 @@
 package bot
 
 import (
+	"discord-music-bot/bot/audioplayer"
 	"discord-music-bot/model"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -84,5 +86,13 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	} else {
 		bot.onUpdateQueueFromGuildID(s, i.GuildID)
 	}
+
+	state, _ := s.State.VoiceState(i.GuildID, i.Member.User.ID)
+	s.ChannelVoiceJoin(i.GuildID, state.ChannelID, false, false)
+	c, e := s.VoiceConnections[i.GuildID]
+	log.Println(c)
+	log.Println(e)
+	ap := audioplayer.NewAudioPlayer(s, i.GuildID)
+	log.Println(ap.Play(songs[0]))
 
 }
