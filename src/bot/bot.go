@@ -6,6 +6,7 @@ import (
 	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
+	"discord-music-bot/model"
 	"discord-music-bot/service"
 
 	"github.com/bwmarrin/discordgo"
@@ -140,6 +141,9 @@ func (bot *Bot) checkIfAllQueuesExist(session *discordgo.Session) {
 		return
 	}
 	for _, queue := range queues {
+		bot.service.RemoveQueueOption(queue, model.Paused)
+		bot.datastore.UpdateQueue(queue)
+
 		if err := bot.onUpdateQueueFromGuildID(session, queue.GuildID); err != nil {
 			if err := bot.datastore.RemoveQueue(
 				queue.ClientID,

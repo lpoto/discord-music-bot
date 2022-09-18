@@ -18,6 +18,7 @@ type AudioPlayer struct {
 	streamingSession *dca.StreamingSession
 	encodingSession  *dca.EncodeSession
 	streaming        bool
+	Interactions     chan *discordgo.Interaction
 }
 
 // NewAudioPlayer constructs an object that handles playing
@@ -30,6 +31,7 @@ func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
 		streamingSession: nil,
 		encodingSession:  nil,
 		streaming:        false,
+		Interactions:     make(chan *discordgo.Interaction, 10),
 	}
 }
 

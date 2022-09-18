@@ -1,6 +1,8 @@
 package bot
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"github.com/bwmarrin/discordgo"
+)
 
 // onUpdateQueueFromInteraction fetches the queue from the datastore
 // based on the provided interaction's guildID and session state's user id,
@@ -8,19 +10,19 @@ import "github.com/bwmarrin/discordgo"
 // it with the fetched queue.
 // This is called from other handler functions and is expected to have
 // an unexpired, unresponded interaction.
-func (bot *Bot) onUpdateQueueFromInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (bot *Bot) onUpdateQueueFromInteraction(s *discordgo.Session, i *discordgo.Interaction) error {
 	clientID := s.State.User.ID
 	guildID := i.GuildID
 
 	queue, err := bot.datastore.GetQueue(clientID, guildID)
 	if err != nil {
 		bot.Errorf("Error when updating queue from interaction: %v", err)
-		return
+		return nil
 	}
 	embed := bot.builder.MapQueueToEmbed(queue)
 	components := bot.builder.GetMusicQueueComponents(queue)
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	if err := s.InteractionRespond(i, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
 			Embeds:     []*discordgo.MessageEmbed{embed},
@@ -28,7 +30,9 @@ func (bot *Bot) onUpdateQueueFromInteraction(s *discordgo.Session, i *discordgo.
 		},
 	}); err != nil {
 		bot.Errorf("Error when updating queue from interaction: %v", err)
+		return err
 	}
+	return nil
 }
 
 // onUpdateQueueFromGuildID fetches the queue from the datastore

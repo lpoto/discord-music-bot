@@ -63,6 +63,10 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 	}
 	// NOTE: when loop option is set, the song should be pushed
 	// to the back of the queue instead of removed
+	queue, err = bot.datastore.GetQueue(queue.ClientID, queue.GuildID)
+	if err != nil {
+		return
+	}
 	if bot.builder.QueueHasOption(queue, model.Loop) {
 		if err := bot.datastore.PersistSongs(
 			s.State.User.ID,
@@ -76,7 +80,21 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 	}
 
 	// NOTE: update the queue after the song has been removed
-	go bot.onUpdateQueueFromGuildID(s, guildID)
+	go func() {
+		for {
+			select {
+			case i := <-ap.Interactions:
+				if err := bot.onUpdateQueueFromInteraction(s, i); err == nil {
+					return
+				}
+				break
+			default:
+				bot.onUpdateQueueFromGuildID(s, guildID)
+				return
+			}
+		}
+
+	}()
 
 	// NOTE: audioplayer has successfully stopped streaming.
 	// play the next song, if any

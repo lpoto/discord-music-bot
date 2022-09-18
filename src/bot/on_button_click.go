@@ -2,6 +2,7 @@ package bot
 
 import (
 	"discord-music-bot/model"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -31,6 +32,9 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	case bot.builder.Config.Components.Pause:
 		bot.pauseButtonClick(s, i)
 		return
+	case bot.builder.Config.Components.Skip:
+		bot.skipButtonClick(s, i)
+		return
 	default:
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -51,7 +55,7 @@ func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.Interactio
 		bot.Errorf("Error on forward button click: %v", err)
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i)
+	bot.onUpdateQueueFromInteraction(s, i.Interaction)
 }
 
 // backwardButtonClick decrements the queue's offset, updates it
@@ -63,7 +67,7 @@ func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.Interacti
 		bot.Errorf("Error on backward button click: %v", err)
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i)
+	bot.onUpdateQueueFromInteraction(s, i.Interaction)
 }
 
 // pauseButtonClick adds or removes the queue's Paused option, updates it
@@ -75,7 +79,7 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 		bot.Errorf("Error on pause button click: %v", err)
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i)
+	bot.onUpdateQueueFromInteraction(s, i.Interaction)
 
 	// Pause the currently playing song, if any
 	if ap, ok := bot.audioplayers[i.GuildID]; ok {
@@ -96,5 +100,28 @@ func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 		bot.Errorf("Error on loop button click: %v", err)
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i)
+	bot.onUpdateQueueFromInteraction(s, i.Interaction)
+}
+
+// skipButtonClick skips the currently playing song if any
+func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	go func() {
+		// NOTE: if after time the interaction has not been yet
+		// responded to
+		time.Sleep(discordgo.InteractionDeadline - (500 * time.Millisecond))
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredMessageUpdate,
+		})
+	}()
+
+	if ap, ok := bot.audioplayers[i.GuildID]; ok {
+		// NOTE: add interaction to the ap, so the
+		// play function may update from interaction and
+		// speed up the process
+		// (updating interactions is not limited as default editing)
+		select {
+		case ap.Interactions <- i.Interaction:
+		}
+		ap.Stop()
+	}
 }

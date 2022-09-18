@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/imdario/mergo v0.3.13
 	github.com/jonas747/dca v0.0.0-20210930103944-155f5e5f0cc7
-	github.com/kkdai/youtube/v2 v2.7.10
+	github.com/kkdai/youtube/v2 v2.7.15
 	github.com/sirupsen/logrus v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )

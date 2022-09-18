@@ -40,8 +40,17 @@ func (service *Service) AddOrRemoveQueueOption(queue *model.Queue, option model.
 			opts = append(opts, o)
 		}
 	}
-	if len(opts) == len(queue.Options) {
-		opts = append(opts, option)
+	opts = append(opts, option)
+	queue.Options = opts
+}
+
+// RemoveQueueOption removes the provied options from the queue
+func (service *Service) RemoveQueueOption(queue *model.Queue, option model.QueueOption) {
+	opts := make([]model.QueueOption, 0)
+	for _, o := range queue.Options {
+		if o != option {
+			opts = append(opts, o)
+		}
 	}
 	queue.Options = opts
 }
