@@ -5,24 +5,25 @@ import (
 	"errors"
 	"strconv"
 	"sync"
-)
-
-const (
-	MaxSongQueries int = 100
+	"time"
 )
 
 // SearchSongs searches the provided queries on the youtube and
 // recieved the found videos' information. Always returns the first
 // search result. If the query is a youtube video url, the url is used
 // for fetching the info.
-func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, error) {
-	client.Tracef("Searching for %d songs on Youtube", len(queries))
+func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
+	i, t := client.GetIdx(), time.Now()
 
-	if len(queries) == 0 {
-		return nil, errors.New("No queries provided")
-	}
-	if len(queries) > MaxSongQueries {
-		return nil, errors.New("Cannot query more than 100 songs at once")
+	client.Tracef("[%d]Youtube start: Search %d song/s on Youtube", i, len(queries))
+
+	if len(queries) > client.Config.MaxParallelQueries {
+		client.Tracef(
+			"[%d]Youtube error: Tried to query more than %d songs",
+			i,
+			client.Config.MaxParallelQueries,
+		)
+		return []*model.SongInfo{}
 	}
 	added := make(map[string]struct{})
 	songBuffer := make(chan *model.SongInfo, len(queries))
@@ -35,14 +36,18 @@ func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, e
 		wg.Add(1)
 		added[query] = struct{}{}
 		go func(query string) {
-			if info, err := client.searchSong(query); err != nil {
+			defer func() {
+				wg.Done()
+			}()
+			info, err := client.searchSong(query)
+			if err != nil {
+				client.Tracef("[%d]Youtube error: %v", i, err)
 				return
-			} else {
-				select {
-				case songBuffer <- info:
-				default:
-					client.Panic("Song buffer full")
-				}
+			}
+			select {
+			case songBuffer <- info:
+			default:
+				client.Panic("Song buffer full")
 			}
 
 		}(query)
@@ -62,10 +67,15 @@ func (client *YoutubeClient) SearchSongs(queries []string) ([]*model.SongInfo, e
 				break songLoop
 			}
 		}
-		client.Tracef("Successfuly found %d songs", len(songs))
-		return songs, nil
+		client.WithField(
+			"Latency", time.Since(t),
+		).Tracef("[%d]Youtube done : Found %d song/s", i, len(songs))
+		return songs
 	}
-	return []*model.SongInfo{}, nil
+	client.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[%d]Youtube done : Found no songs", i)
+	return []*model.SongInfo{}
 }
 
 func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
@@ -106,7 +116,6 @@ func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
 	err = errors.New("Invalid query param: " + q)
 	if v, ok := content["title"]; ok {
 		info.Name = v
-		info.TrimmedName = client.trimYoutubeSongName(v)
 	} else {
 		return nil, err
 	}
@@ -117,8 +126,7 @@ func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
 	}
 	if v, ok := content["lengthSeconds"]; ok {
 		if i, err := strconv.Atoi(v); err == nil {
-			info.DurationSeconds = i
-			info.DurationString = client.secondsToTimeString(i)
+			info.LengthSeconds = i
 		} else {
 			return nil, err
 		}

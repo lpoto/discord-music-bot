@@ -22,7 +22,7 @@ type Bot struct {
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration) *Bot {
+func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration, youtubeConfig *youtube.Configuration) *Bot {
 	l := log.New()
 	l.SetLevel(logLevel)
 	l.Debug("Creating Discord music bot ...")
@@ -32,7 +32,7 @@ func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, bu
 		service:                   service.NewService(),
 		builder:                   builder.NewBuilder(builderConfig),
 		datastore:                 datastore.NewDatastore(datastoreConfig),
-		youtubeClient:             youtube.NewYoutubeClient(logLevel),
+		youtubeClient:             youtube.NewYoutubeClient(youtubeConfig),
 		applicationCommandsConfig: appCommandsConfig,
 	}
 	l.Info("Discord music bot created")
@@ -135,10 +135,7 @@ func (bot *Bot) checkIfAllQueuesExist(session *discordgo.Session) {
 		return
 	}
 	for _, queue := range queues {
-		if _, err := session.ChannelMessage(
-			queue.ChannelID,
-			queue.MessageID,
-		); err != nil {
+		if err := bot.updateQueueFromGuildID(session, queue.GuildID); err != nil {
 			if err := bot.datastore.RemoveQueue(
 				queue.ClientID,
 				queue.GuildID,

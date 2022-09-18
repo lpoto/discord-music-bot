@@ -34,31 +34,33 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 	}
 	s := `
     INSERT INTO "song" (
-        position, name, trimmed_name, url, duration_seconds, video_id,
+        position, name, short_name, url, duration_seconds,
         duration_string, color, queue_client_id, queue_guild_id
     ) VALUES
     `
 	used := make(map[string]struct{})
 	idx := 0
 	for _, song := range songs {
-		if _, ok := used[song.Info.VideoID]; ok {
+		if song == nil {
+			continue
+		}
+		if _, ok := used[song.Name]; ok {
 			continue
 		}
 		idx++
 		maxPosition++
-		used[song.Info.VideoID] = struct{}{}
+		used[song.Name] = struct{}{}
 		if idx > 1 {
 			s += ","
 		}
 		s += fmt.Sprintf(
-			` (%d, '%s', '%s', '%s', %d, '%s', '%s', %d, '%s', '%s')`,
+			` (%d, '%s', '%s', '%s', %d, '%s', %d, '%s', '%s')`,
 			maxPosition,
-			datastore.escapeSingleQuotes(song.Info.Name),
-			datastore.escapeSingleQuotes(song.Info.TrimmedName),
-			datastore.escapeSingleQuotes(song.Info.Url),
-			song.Info.DurationSeconds,
-			datastore.escapeSingleQuotes(song.Info.VideoID),
-			datastore.escapeSingleQuotes(song.Info.DurationString),
+			datastore.escapeSingleQuotes(song.Name),
+			datastore.escapeSingleQuotes(song.ShortName),
+			datastore.escapeSingleQuotes(song.Url),
+			song.DurationSeconds,
+			datastore.escapeSingleQuotes(song.DurationString),
 			song.Color,
 			clientID,
 			guildID,
@@ -92,10 +94,9 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
     UPDATE "song" as s set
         position = s2.position,
         name = s2.name,
-        trimmed_name = s2.trimmed_name,
+        short_name = s2.short_name,
         url = s2.url,
         duration_seconds = s2.duration_seconds,
-        video_id = s2.video_id,
         duration_string = s2.duration_string,
         color = s2.color,
     FROM (
@@ -113,22 +114,21 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 			s += ","
 		}
 		s += fmt.Sprintf(
-			` (%d, %d, '%s', '%s', '%s', %d, '%s', '%s', %d)`,
+			` (%d, %d, '%s', '%s', '%s', %d, '%s', %d)`,
 			song.ID,
 			song.Position,
-			datastore.escapeSingleQuotes(song.Info.Name),
-			datastore.escapeSingleQuotes(song.Info.TrimmedName),
-			datastore.escapeSingleQuotes(song.Info.Url),
-			song.Info.DurationSeconds,
-			datastore.escapeSingleQuotes(song.Info.VideoID),
-			datastore.escapeSingleQuotes(song.Info.DurationString),
+			datastore.escapeSingleQuotes(song.Name),
+			datastore.escapeSingleQuotes(song.ShortName),
+			datastore.escapeSingleQuotes(song.Url),
+			song.DurationSeconds,
+			datastore.escapeSingleQuotes(song.DurationString),
 			song.Color,
 		)
 	}
 	s += `
         ) as s2(
-            id, position, name, trimmed_name, url, duration_seconds,
-            video_id, duration_string, color
+            id, position, name, short_name, url, duration_seconds,
+            duration_string, color
         )
     WHERE s.id = s2.id;
     `
@@ -159,7 +159,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
         SELECT * FROM "song"
         WHERE "song".queue_client_id = $1 AND
             "song".queue_guild_id = $2
-        ORDER BY position
+        ORDER BY position ASC
         OFFSET $3
         LIMIT $4;
         `,
@@ -174,20 +174,21 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 		songs := make([]*model.Song, 0)
 		for rows.Next() {
 			song := &model.Song{}
-			song.Info = &model.SongInfo{}
 			var ignore string
 			if err := rows.Scan(
 				&song.ID, &song.Position,
-				&song.Info.Name, &song.Info.TrimmedName,
-				&song.Info.Url, &song.Info.VideoID,
-				&song.Info.DurationSeconds, &song.Info.DurationString,
-				&song.Color, &ignore, &ignore, &song.Timestamp,
+				&song.Name, &song.ShortName, &song.Url,
+				&song.DurationSeconds, &song.DurationString,
+				&song.Color, &ignore, &ignore,
 			); err != nil {
 				datastore.Errorf(
 					"[%d]Error: %v", i, err,
 				)
 				return nil, err
 			} else {
+				song.Name = datastore.unescapeSingleQuotes(song.Name)
+				song.ShortName = datastore.unescapeSingleQuotes(song.ShortName)
+				song.Url = datastore.unescapeSingleQuotes(song.Url)
 				songs = append(songs, song)
 			}
 		}
@@ -224,14 +225,12 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 		songs := make([]*model.Song, 0)
 		for rows.Next() {
 			song := &model.Song{}
-			song.Info = &model.SongInfo{}
 			var ignore string
 			if err := rows.Scan(
 				&song.ID, &song.Position,
-				&song.Info.Name, &song.Info.TrimmedName,
-				&song.Info.Url, &song.Info.VideoID,
-				&song.Info.DurationSeconds, &song.Info.DurationString,
-				&song.Color, &ignore, &ignore, &song.Timestamp,
+				&song.Name, &song.ShortName, &song.Url,
+				&song.DurationSeconds, &song.DurationString,
+				&song.Color, &ignore, &ignore,
 			); err != nil {
 				datastore.Errorf(
 					"[%d]Error: %v", i, err,
@@ -325,15 +324,13 @@ func (datastore *Datastore) createSongTable() error {
             id SERIAL,
             position INTEGER NOT NULL DEFAULT '0',
             name VARCHAR NOT NULL,
-            trimmed_name VARCHAR NOT NULL,
+            short_name VARCHAR NOT NULL,
             url VARCHAR NOT NULL,
-            video_id VARCHAR NOT NULL,
             duration_seconds INTEGER NOT NULL,
             duration_string VARCHAR NOT NULL,
             color INTEGER NOT NULL,
             queue_client_id VARCHAR,
             queue_guild_id VARCHAR,
-            timestamp TIMESTAMP DEFAULT ((CURRENT_TIMESTAMP)),
             PRIMARY KEY (id),
             FOREIGN KEY (queue_client_id, queue_guild_id)
                 REFERENCES "queue" (client_id, guild_id)
@@ -366,8 +363,7 @@ func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) 
         SELECT COALESCE(MAX(s.position), 0)
         FROM "song" s
         WHERE s.queue_guild_id = $1 AND
-            s.queue_client_id = $2 AND
-            s.position <> $3
+            s.queue_client_id = $2
     `,
 		guildID,
 		clientID,

@@ -1,8 +1,6 @@
 package bot
 
 import (
-	"log"
-
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -20,8 +18,6 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	); err == nil {
 		bot.onAddSongsCommand(s, i)
 		return
-	} else {
-		log.Println(err)
 	}
 
 	// Construct a new queue, send it to the channel
@@ -31,10 +27,8 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		i.GuildID,
 		"", "",
 	)
-	embed := bot.builder.MapQueueToEmbed(
-		queue,
-		bot.applicationCommandsConfig.Music.Description,
-	)
+	embed := bot.builder.MapQueueToEmbed(queue)
+
 	err := s.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{

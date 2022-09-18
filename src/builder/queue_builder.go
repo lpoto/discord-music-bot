@@ -32,13 +32,13 @@ func (builder *Builder) NewQueue(clientID string, guildID string, messageID stri
 // limited by queue's limit and offset, in the second field.
 // It has buttons for all of the available commands and
 // a text input, through which the songs may be added.
-func (builder *Builder) MapQueueToEmbed(queue *model.Queue, footer string) *discordgo.MessageEmbed {
+func (builder *Builder) MapQueueToEmbed(queue *model.Queue) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       builder.Config.Title,
 		Fields:      make([]*discordgo.MessageEmbedField, 0),
 		Description: builder.Config.Description,
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: footer,
+			Text: builder.Config.Footer,
 		},
 	}
 	spacer := "> "
@@ -48,11 +48,11 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue, footer string) *disc
 		// TODO: add song loader
 		// TODO: wrap head song to lines of length 30
 		// TODO: use canvas to shorten song names
-		headSong := queue.HeadSong.Info.TrimmedName
+		headSong := builder.WrapName(queue.HeadSong.Name)
 		headSong = fmt.Sprintf(
 			"%s\n**%s**\u3000%s\n%s",
 			spacer,
-			queue.HeadSong.Info.DurationString,
+			queue.HeadSong.DurationString,
 			headSong,
 			spacer2,
 		)
@@ -69,7 +69,7 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue, footer string) *disc
 			songs = append(songs, fmt.Sprintf(
 				"***%d***\u3000%s",
 				i+queue.Offset+1,
-				s.Info.TrimmedName,
+				s.ShortName,
 			),
 			)
 		}

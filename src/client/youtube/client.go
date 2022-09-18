@@ -16,18 +16,27 @@ const (
 type YoutubeClient struct {
 	*log.Logger
 	*base.BaseClient
+	Config *Configuration
+	idx    int
+}
+
+type Configuration struct {
+	LogLevel           log.Level `yaml:"LogLevel" validate:"required"`
+	MaxParallelQueries int       `yaml:"MaxParallelQueries" validate:"required"`
 }
 
 // NewYoutubeClient constructs a new object that handles
 // the requests send to the youtube.
-func NewYoutubeClient(logLevel log.Level) *YoutubeClient {
+func NewYoutubeClient(config *Configuration) *YoutubeClient {
 	l := log.New()
-	l.SetLevel(logLevel)
+	l.SetLevel(config.LogLevel)
 	l.Debug("Youtube client created")
 
 	return &YoutubeClient{
 		l,
 		base.NewClient(BaseYoutubeUrl),
+		config,
+		0,
 	}
 }
 
@@ -36,4 +45,10 @@ func NewYoutubeClient(logLevel log.Level) *YoutubeClient {
 func (client *YoutubeClient) Get(endpoint string) *base.Request {
 	req, _ := client.NewRequest("GET", endpoint)
 	return req
+}
+
+func (client *YoutubeClient) GetIdx() int {
+	idx := client.idx
+	client.idx = (client.idx + 1) % 100
+	return idx
 }

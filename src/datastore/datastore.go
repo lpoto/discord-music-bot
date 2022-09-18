@@ -89,5 +89,9 @@ func (datastore *Datastore) getIdx() int {
 }
 
 func (datastore *Datastore) escapeSingleQuotes(s string) string {
-	return strings.ReplaceAll(s, "'", `"`)
+	return strings.ReplaceAll(s, "'", "`")
+}
+
+func (datastore *Datastore) unescapeSingleQuotes(s string) string {
+	return strings.ReplaceAll(s, "`", "'")
 }
