@@ -7,12 +7,13 @@ MusicBot:
       Description: "Life is one grand, sweet song so start the music."
     Help:
       Name: help
-      Description: "Information about the commands"
+      Description: "Info about using the music bot"
     AddSongs:
       Name: Add songs
   QueueBuilder:
     Title: Music Queue
     Description: ""
+    Footer: "Life is one grand,\u3000sweet song so start the music."
     Components:
       Backward: "<"
       Forward: ">"

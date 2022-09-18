@@ -106,8 +106,8 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
-				builder.newButton(builder.Config.Components.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
 				builder.newButton(builder.Config.Components.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
+				builder.newButton(builder.Config.Components.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
 				builder.newButton(builder.Config.Components.Previous, discordgo.SecondaryButton, true),
 				builder.newButton(builder.Config.Components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil),
 			},

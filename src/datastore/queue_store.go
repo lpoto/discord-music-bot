@@ -60,7 +60,7 @@ func (datastore *Datastore) PersistQueue(queue *model.Queue) (*model.Queue, erro
 // UpdateQueue updates the provided queue. This does not update
 // the queue's clientID or guildID.
 // Returns error if the queue does not exist in the databse.
-func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error) {
+func (datastore *Datastore) UpdateQueue(queue *model.Queue) error {
 	i, t := datastore.getIdx(), time.Now()
 
 	datastore.WithFields(log.Fields{
@@ -68,20 +68,16 @@ func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error
 		"GuildID":  queue.GuildID,
 	}).Tracef("[%d]Start: Update queue", i)
 
-	newQueue := &model.Queue{}
-	opts := make([]string, 0)
-
-	if err := datastore.QueryRow(
+	if _, err := datastore.Exec(
 		`
-        UPATE "queue" 
-        SET offset = $3,
-            limit = $4,
-            options = $5
-            message_id = $6
+        UPDATE "queue"
+        SET "offset" = $3,
+            "limit" = $4,
+            options = $5,
+            message_id = $6,
             channel_id = $7
         WHERE "queue".client_id = $1 AND
-            "queue".guild_id = $2
-        RETURNING *;
+            "queue".guild_id = $2;
         `,
 		queue.ClientID,
 		queue.GuildID,
@@ -90,25 +86,16 @@ func (datastore *Datastore) UpdateQueue(queue *model.Queue) (*model.Queue, error
 		pq.Array(model.QueueOptionsToStringSlice(queue.Options)),
 		queue.MessageID,
 		queue.ChannelID,
-	).Scan(
-		&newQueue.ClientID, &newQueue.GuildID,
-		&newQueue.MessageID, &newQueue.ChannelID,
-		&newQueue.Offset,
-		&newQueue.Limit, pq.Array(&opts),
 	); err != nil {
 		datastore.Tracef(
 			"[%d]Error: %v", i, err,
 		)
-		return nil, err
-	} else {
-		newQueue.Options = model.StringSliceToQueueOptions(opts)
-
-		datastore.WithField(
-			"Latency", time.Since(t),
-		).Tracef("[%d]Done : Queeu updated", i)
-
-		return datastore.GetQueueData(newQueue)
+		return err
 	}
+	datastore.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[%d]Done : Queeu updated", i)
+	return nil
 }
 
 // RemoveQueue removes the queue identified by the clientID and guildID

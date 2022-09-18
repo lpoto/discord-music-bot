@@ -12,8 +12,8 @@ type Configuration struct {
 }
 
 type ComponentsConfig struct {
-	Backward string `yaml:"Forward" validate:"required"`
-	Forward  string `yaml:"Backward" validate:"required"`
+	Backward string `yaml:"Backward" validate:"required"`
+	Forward  string `yaml:"Forward" validate:"required"`
 	Pause    string `yaml:"Pause" validate:"required"`
 	Skip     string `yaml:"Skip" validate:"required"`
 	Previous string `yaml:"Previous" validate:"required"`
