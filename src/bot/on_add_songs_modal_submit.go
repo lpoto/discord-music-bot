@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"discord-music-bot/model"
 	"fmt"
 	"strings"
 
@@ -41,18 +42,27 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 
-	// Deffer the interaction, as it may be outdated before
-	// the songs are found, and we never reply to this action
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredMessageUpdate,
-	})
-
-	songs := bot.youtubeClient.SearchSongs(queries)
-	if len(songs) == 0 {
+	songInfos := bot.youtubeClient.SearchSongs(queries)
+	if len(songInfos) == 0 {
 		return
 	}
 
 	// a positive number of songs has been found, save them to the queue
 	// and update it
+	songs := make([]*model.Song, len(songInfos))
+	for i, info := range songInfos {
+		songs[i] = bot.builder.NewSong(info)
+	}
+
+	if err := bot.datastore.PersistSongs(
+		s.State.User.ID,
+		i.GuildID,
+		songs,
+	); err != nil {
+		bot.Errorf("Error when submitting add songs modal: %v", err)
+		return
+	}
+
+	bot.updateQueueFromInteraction(s, i)
 
 }

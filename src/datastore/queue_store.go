@@ -156,11 +156,18 @@ func (datastore *Datastore) GetQueue(clientID string, guildID string) (*model.Qu
 	if err != nil {
 		return nil, err
 	}
+
+	queue, err = datastore.GetQueueData(queue)
+
+	if err != nil {
+		return nil, err
+	}
+
 	datastore.WithField(
 		"Latency", time.Since(t),
 	).Tracef("[%d]Done : Queue fetched", i)
 
-	return datastore.GetQueueData(queue)
+	return queue, nil
 }
 
 // FindQueue searches for a queue with the provided clientID and guildID.
@@ -260,7 +267,7 @@ func (datastore *Datastore) GetQueueData(queue *model.Queue) (*model.Queue, erro
 	if songs, err := datastore.GetSongsForQueue(
 		queue.ClientID,
 		queue.GuildID,
-		queue.Offset,
+		queue.Offset+1,
 		queue.Limit,
 	); err == nil {
 

@@ -1,30 +1,19 @@
 package model
 
-import (
-	"math/rand"
-	"time"
-)
-
 type Song struct {
-	ID        uint      `json:"id"`
-	Position  int       `json:"position"`
-	Color     int       `json:"color"`
-	Info      *SongInfo `json:"info"`
-	Timestamp time.Time `json:"timestamp"`
+	ID              uint      `json:"id"`
+	Position        int       `json:"position"`
+	Name            string    `json:"name"`
+	ShortName       string    `json:"short_name"`
+	Url             string    `json:"url"`
+	DurationSeconds int       `json:"duration_seconds"`
+	DurationString  string    `json:"duration_string"`
+	Color           int       `json:"color"`
 }
 
 type SongInfo struct {
-	VideoID         string `json:"video_id"`
-	Name            string `json:"name"`
-	TrimmedName     string `json:"trimmed_name"`
-	Url             string `json:"url"`
-	DurationString  string `json:"duration_string"`
-	DurationSeconds int    `json:"duration_seconds"`
-}
-
-func NewSong(info *SongInfo) *Song {
-	song := new(Song)
-	song.Info = info
-	song.Color = rand.Intn(16777216)
-	return song
+	VideoID       string `json:"video_id"`
+	Name          string `json:"name"`
+	Url           string `json:"url"`
+	LengthSeconds int    `json:"duration_seconds"`
 }

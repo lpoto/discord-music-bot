@@ -7,6 +7,7 @@ type Builder struct {
 type Configuration struct {
 	Title       string            `yaml:"Title" validate:"required"`
 	Description string            `yaml:"Description"`
+	Footer      string            `yaml:"Footer"`
 	Components  *ComponentsConfig `yaml:"Components" validate:"required"`
 }
 

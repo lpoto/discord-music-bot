@@ -116,7 +116,6 @@ func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
 	err = errors.New("Invalid query param: " + q)
 	if v, ok := content["title"]; ok {
 		info.Name = v
-		info.TrimmedName = client.trimYoutubeSongName(v)
 	} else {
 		return nil, err
 	}
@@ -127,8 +126,7 @@ func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
 	}
 	if v, ok := content["lengthSeconds"]; ok {
 		if i, err := strconv.Atoi(v); err == nil {
-			info.DurationSeconds = i
-			info.DurationString = client.secondsToTimeString(i)
+			info.LengthSeconds = i
 		} else {
 			return nil, err
 		}

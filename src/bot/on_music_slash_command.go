@@ -27,10 +27,8 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		i.GuildID,
 		"", "",
 	)
-	embed := bot.builder.MapQueueToEmbed(
-		queue,
-		bot.applicationCommandsConfig.Music.Description,
-	)
+	embed := bot.builder.MapQueueToEmbed(queue)
+
 	err := s.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{
