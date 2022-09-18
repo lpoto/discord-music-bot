@@ -38,7 +38,7 @@ func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 		configuration.ApplicationCommands,
 		configuration.QueueBuilder,
 		configuration.Datastore,
-        configuration.Youtube,
+		configuration.Youtube,
 	)
 	if err := bot.Init(ctx); err != nil {
 		log.Panic(err)

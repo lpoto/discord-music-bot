@@ -13,7 +13,7 @@ MusicBot:
   QueueBuilder:
     Title: Music Queue
     Description: ""
-    Footer: "Life is one grand,\u3000sweet song so start the music."
+    Footer: "Life is one grand, sweet song... so start the music."
     Components:
       Backward: "<"
       Forward: ">"
