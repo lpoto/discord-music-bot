@@ -49,7 +49,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 		// NOTE: if searching for songs is taking too long,
 		// deffer the interaction, so the user does not recieve
 		// "Something went wrong" error
-		time.Sleep(discordgo.InteractionDeadline - time.Second)
+		time.Sleep(discordgo.InteractionDeadline - (250 * time.Millisecond))
 		if !added {
 			added = true
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -80,9 +80,8 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	}
 
 	if !added {
-		bot.onUpdateQueueFromInteraction(s, i)
+		bot.onUpdateQueueFromInteraction(s, i.Interaction)
 	} else {
 		bot.onUpdateQueueFromGuildID(s, i.GuildID)
 	}
-
 }

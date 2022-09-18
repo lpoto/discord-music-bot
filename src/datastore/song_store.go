@@ -282,7 +282,7 @@ func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string
 // queue, identified by the provided clientID and guildID.
 // If force is true, the songs are deleted, else they are moved
 // to the 'inactive_song' table.
-func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []string) error {
+func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []uint) error {
 	i, t := datastore.getIdx(), time.Now()
 
 	datastore.WithFields(log.Fields{

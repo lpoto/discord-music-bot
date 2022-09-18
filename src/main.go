@@ -34,13 +34,14 @@ type Configuration struct {
 // initializes it and returns the bot object
 func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 	bot := bot.NewBot(
+		ctx,
 		configuration.LogLevel,
 		configuration.ApplicationCommands,
 		configuration.QueueBuilder,
 		configuration.Datastore,
 		configuration.Youtube,
 	)
-	if err := bot.Init(ctx); err != nil {
+	if err := bot.Init(); err != nil {
 		log.Panic(err)
 	}
 	return bot
@@ -85,6 +86,6 @@ func main() {
 		log.Fatal("Forced shutdown")
 	}()
 
-	bot.Run(ctx, configuration.DiscordToken)
+	bot.Run(configuration.DiscordToken)
 	log.Print("Clean Shutdown")
 }
