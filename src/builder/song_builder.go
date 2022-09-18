@@ -3,6 +3,7 @@ package builder
 import (
 	"discord-music-bot/model"
 	"fmt"
+	"math"
 	"math/rand"
 	"regexp"
 	"strconv"
@@ -23,13 +24,49 @@ func (builder *Builder) NewSong(info *model.SongInfo) *model.Song {
 	return song
 }
 
+// WrapName wraps the provided name to multiple shorter lines,
+// so the full name may be displayed without widening the queue embed
+func (builder *Builder) WrapName(name string) string {
+	name = strings.TrimSpace(name)
+	spacer := "\n> ㅤ"
+	if len(name) > 100 {
+		name = name[100:]
+	}
+	maxLength := 30
+	fields := strings.Fields(name)
+
+	fields2 := make([]string, 0)
+
+	s := ""
+	for i := 0; i <= len(fields); i++ {
+		if i < len(fields) && (i == 0 || len(s+fields[i])+1 <= maxLength) {
+			if len(fields[i]) > 0 {
+				s += " " + fields[i]
+			}
+		} else {
+			diff := int(math.Round((float64(maxLength) - float64(len(s))) / 3))
+			if diff > 0 {
+				s = strings.Repeat("\u2000", diff) + s
+			}
+			if len(fields2) > 0 {
+				s = spacer + s
+			}
+			fields2 = append(fields2, s)
+			if i < len(fields) {
+				s = fields[i]
+			}
+		}
+	}
+	return strings.Join(fields2, "")
+}
+
 // shortenYoutubeSongName returns a substring of the provided
 // song name, so that all songs in the queue appear of equal lengths.
 func (builder *Builder) shortenYoutubeSongName(name string) string {
 	if len(name) <= 30 {
 		return name
 	}
-	return name[:30]
+	return builder.decodeJsonEncoding(name[:30]) + "..."
 }
 
 // trimYoutubeSongName removes suffixes such as [hd], (video), [lyrics], ...
@@ -59,7 +96,7 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	name = builder.decodeJsonEncoding(name)
 
 	name = builder.toTitleString(name)
-	return name
+	return builder.decodeJsonEncoding(name)
 }
 
 // secondsToTimeString converts the seconds to a string
@@ -94,5 +131,12 @@ func (builder *Builder) toTitleString(s string) string {
 		split[i] = f
 	}
 	s = strings.Join(split, " ")
+	s = builder.decodeJsonEncoding(s)
+	if len(s) == 1 {
+		return strings.ToUpper(s)
+	}
+	if len(s) == 0 {
+		return "NoTitle"
+	}
 	return strings.ToUpper(s[:1]) + s[1:]
 }

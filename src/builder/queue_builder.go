@@ -48,7 +48,7 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue) *discordgo.MessageEm
 		// TODO: add song loader
 		// TODO: wrap head song to lines of length 30
 		// TODO: use canvas to shorten song names
-		headSong := queue.HeadSong.Name
+		headSong := builder.WrapName(queue.HeadSong.Name)
 		headSong = fmt.Sprintf(
 			"%s\n**%s**\u3000%s\n%s",
 			spacer,

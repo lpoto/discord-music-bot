@@ -45,7 +45,7 @@ song name or url  #2
 		Placeholder: placeholder,
 		Style:       discordgo.TextInputParagraph,
 		MinLength:   1,
-		MaxLength:   4000,
+		MaxLength:   1000,
 		Required:    true,
 	}
 	return []discordgo.MessageComponent{textInput}
@@ -63,8 +63,9 @@ func (bot *Bot) getModal(name string, components []discordgo.MessageComponent) *
 		},
 	}
 }
+
 // getModalName retrieves the name of the modal from
 // it's customID
 func (bot *Bot) getModalName(data discordgo.ModalSubmitInteractionData) string {
-    return strings.Split(data.CustomID, "<split>")[0]
+	return strings.Split(data.CustomID, "<split>")[0]
 }
