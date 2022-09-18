@@ -80,9 +80,9 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	}
 
 	if !added {
-		bot.updateQueueFromInteraction(s, i)
+		bot.onUpdateQueueFromInteraction(s, i)
 	} else {
-		bot.updateQueueFromGuildID(s, i.GuildID)
+		bot.onUpdateQueueFromGuildID(s, i.GuildID)
 	}
 
 }

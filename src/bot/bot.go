@@ -135,7 +135,7 @@ func (bot *Bot) checkIfAllQueuesExist(session *discordgo.Session) {
 		return
 	}
 	for _, queue := range queues {
-		if err := bot.updateQueueFromGuildID(session, queue.GuildID); err != nil {
+		if err := bot.onUpdateQueueFromGuildID(session, queue.GuildID); err != nil {
 			if err := bot.datastore.RemoveQueue(
 				queue.ClientID,
 				queue.GuildID,

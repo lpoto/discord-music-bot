@@ -1,6 +1,8 @@
 package bot
 
 import (
+	"discord-music-bot/model"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -17,6 +19,18 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	case bot.builder.Config.Components.AddSongs:
 		bot.onAddSongsCommand(s, i)
 		return
+	case bot.builder.Config.Components.Backward:
+		bot.backwardButtonClick(s, i)
+		return
+	case bot.builder.Config.Components.Forward:
+		bot.forwardButtonClick(s, i)
+		return
+	case bot.builder.Config.Components.Loop:
+		bot.loopButtonClick(s, i)
+		return
+	case bot.builder.Config.Components.Pause:
+		bot.pauseButtonClick(s, i)
+		return
 	default:
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -26,5 +40,44 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 			},
 		})
 	}
+}
 
+func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	bot.service.IncrementQueueOffset(queue)
+	if err := bot.datastore.UpdateQueue(queue); err != nil {
+		bot.Errorf("Error on forward button click: %v", err)
+		return
+	}
+	bot.onUpdateQueueFromInteraction(s, i)
+}
+
+func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	bot.service.DecrementQueueOffset(queue)
+	if err := bot.datastore.UpdateQueue(queue); err != nil {
+		bot.Errorf("Error on backward button click: %v", err)
+		return
+	}
+	bot.onUpdateQueueFromInteraction(s, i)
+}
+
+func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	bot.service.AddOrRemoveQueueOption(queue, model.Paused)
+	if err := bot.datastore.UpdateQueue(queue); err != nil {
+		bot.Errorf("Error on pause button click: %v", err)
+		return
+	}
+	bot.onUpdateQueueFromInteraction(s, i)
+}
+
+func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	bot.service.AddOrRemoveQueueOption(queue, model.Loop)
+	if err := bot.datastore.UpdateQueue(queue); err != nil {
+		bot.Errorf("Error on loop button click: %v", err)
+		return
+	}
+	bot.onUpdateQueueFromInteraction(s, i)
 }

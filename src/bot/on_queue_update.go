@@ -2,11 +2,13 @@ package bot
 
 import "github.com/bwmarrin/discordgo"
 
-// updateQueueFromInteraction fetches the queue from the datastore
+// onUpdateQueueFromInteraction fetches the queue from the datastore
 // based on the provided interaction's guildID and session state's user id,
 // then fetches the message that belongs to the queue's messageID and updates
 // it with the fetched queue.
-func (bot *Bot) updateQueueFromInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+// This is called from other handler functions and is expected to have
+// an unexpired, unresponded interaction.
+func (bot *Bot) onUpdateQueueFromInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	clientID := s.State.User.ID
 	guildID := i.GuildID
 
@@ -34,7 +36,7 @@ func (bot *Bot) updateQueueFromInteraction(s *discordgo.Session, i *discordgo.In
 // then fetches the message that belongs to the queue's messageID and updates
 // it with the fetched queue.
 // Returns error if the queue message does not exist.
-func (bot *Bot) updateQueueFromGuildID(s *discordgo.Session, guildID string) error {
+func (bot *Bot) onUpdateQueueFromGuildID(s *discordgo.Session, guildID string) error {
 	clientID := s.State.User.ID
 
 	queue, err := bot.datastore.GetQueue(clientID, guildID)
