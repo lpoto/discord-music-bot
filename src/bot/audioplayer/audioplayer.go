@@ -4,7 +4,6 @@ import (
 	"context"
 	"discord-music-bot/model"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -16,7 +15,6 @@ type AudioPlayer struct {
 	client           *youtube.Client
 	guildID          string
 	session          *discordgo.Session
-	pauseBuffer      chan struct{}
 	streamingSession *dca.StreamingSession
 }
 
@@ -27,7 +25,6 @@ func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
 		client:           &youtube.Client{},
 		guildID:          guildID,
 		session:          session,
-		pauseBuffer:      make(chan struct{}, 5),
 		streamingSession: nil,
 	}
 }
@@ -77,14 +74,24 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		case <-done:
 		case <-streamingDone:
 			return nil
-		case _, ok := <-ap.pauseBuffer:
-			// NOTE: pause if not paused, unpause if paused
-			if !ok {
-				log.Panic("Pause buffer full!")
-			}
-			ap.streamingSession.SetPaused(ap.streamingSession.Paused())
 		}
 	}
+}
+
+// Pause pauses the currently streaming session if any
+func (ap *AudioPlayer) Pause() {
+	if ap.streamingSession == nil {
+		return
+	}
+	ap.streamingSession.SetPaused(true)
+}
+
+// Pause unpauses the currently streaming session if any
+func (ap *AudioPlayer) Unpause() {
+	if ap.streamingSession == nil {
+		return
+	}
+	ap.streamingSession.SetPaused(true)
 }
 
 // PlaybackPosition returns the duration of the currently playing
