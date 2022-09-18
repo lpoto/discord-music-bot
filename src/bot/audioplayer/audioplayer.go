@@ -16,6 +16,7 @@ type AudioPlayer struct {
 	guildID          string
 	session          *discordgo.Session
 	streamingSession *dca.StreamingSession
+	streaming        bool
 }
 
 // NewAudioPlayer constructs an object that handles playing
@@ -26,12 +27,22 @@ func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
 		guildID:          guildID,
 		session:          session,
 		streamingSession: nil,
+		streaming:        false,
 	}
+}
+
+// IsPlaying returns true if the audioplayer is currenthly
+// streaming some audio, false otherwise
+func (ap *AudioPlayer) IsPlaying() bool {
+	return ap.streaming
 }
 
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
 func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
+	ap.streaming = true
+	defer func() { ap.streaming = false }()
+
 	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
 	if !ok {
 		return errors.New("Not connected to voice")

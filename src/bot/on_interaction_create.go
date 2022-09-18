@@ -23,6 +23,13 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		"GuildID", i.GuildID,
 	).Tracef("Interaction created (%s)", i.ID)
 
+	channelID := ""
+	if userState, _ := s.State.VoiceState(
+		i.GuildID, i.Member.User.ID,
+	); userState != nil {
+		channelID = userState.ChannelID
+	}
+
 	defer func() {
 		bot.WithField(
 			"Latency", time.Since(t),
@@ -43,6 +50,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 				return
 			}
 			bot.onMusicSlashCommand(s, i)
+			bot.play(s, i.GuildID, channelID)
 		case bot.applicationCommandsConfig.Help.Name:
 			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)
@@ -56,6 +64,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		case bot.applicationCommandsConfig.AddSongs.Name:
 			// add songs modal has been submited
 			bot.onAddSongsModalSubmit(s, i)
+			bot.play(s, i.GuildID, channelID)
 		}
 
 	} else if i.Type == discordgo.InteractionMessageComponent {
@@ -74,6 +83,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		case discordgo.ButtonComponent:
 			// a button has been clicked
 			bot.onButtonClick(s, i)
+			bot.play(s, i.GuildID, channelID)
 		}
 	}
 }

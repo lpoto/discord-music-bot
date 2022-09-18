@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"discord-music-bot/bot/audioplayer"
 	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
@@ -13,27 +14,31 @@ import (
 
 type Bot struct {
 	*log.Logger
+	ctx                       context.Context
 	service                   *service.Service
 	builder                   *builder.Builder
 	datastore                 *datastore.Datastore
 	youtubeClient             *youtube.YoutubeClient
 	applicationCommandsConfig *ApplicationCommandsConfig
+	audioplayers              map[string]*audioplayer.AudioPlayer
 }
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration, youtubeConfig *youtube.Configuration) *Bot {
+func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration, youtubeConfig *youtube.Configuration) *Bot {
 	l := log.New()
 	l.SetLevel(logLevel)
 	l.Debug("Creating Discord music bot ...")
 
 	bot := &Bot{
+		ctx:                       ctx,
 		Logger:                    l,
 		service:                   service.NewService(),
 		builder:                   builder.NewBuilder(builderConfig),
 		datastore:                 datastore.NewDatastore(datastoreConfig),
 		youtubeClient:             youtube.NewYoutubeClient(youtubeConfig),
 		applicationCommandsConfig: appCommandsConfig,
+		audioplayers:              make(map[string]*audioplayer.AudioPlayer),
 	}
 	l.Info("Discord music bot created")
 	return bot
@@ -43,13 +48,13 @@ func NewBot(logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, bu
 // connects to a postgres database based on the provided config,
 // initialized the tables and other initial data in the datastore and
 // registers all the required commands through the discord api.
-func (bot *Bot) Init(ctx context.Context) error {
+func (bot *Bot) Init() error {
 	bot.Debug("Initializing the bot ...")
 
 	if err := bot.datastore.Connect(); err != nil {
 		return err
 	}
-	if err := bot.datastore.Init(ctx); err != nil {
+	if err := bot.datastore.Init(bot.ctx); err != nil {
 		return err
 	}
 	bot.Info("Bot initialized")
@@ -59,8 +64,8 @@ func (bot *Bot) Init(ctx context.Context) error {
 // Run is a long lived worker that creates a new discord session,
 // verifies it, adds required intents and discord event handlers,
 // then runs while the context is alive.
-func (bot *Bot) Run(ctx context.Context, token string) {
-	done := ctx.Done()
+func (bot *Bot) Run(token string) {
+	done := bot.ctx.Done()
 
 	bot.Info("Creating new Discord session...")
 	session, err := discordgo.New("Bot " + token)

@@ -30,6 +30,17 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 	// NOTE: guildID  is an empty string, so the commands are
 	// global
 	guildID := ""
+
+	commands := []*discordgo.ApplicationCommand{
+		{
+			Name:        bot.applicationCommandsConfig.Music.Name,
+			Description: bot.applicationCommandsConfig.Music.Description,
+		},
+		{
+			Name:        bot.applicationCommandsConfig.Help.Name,
+			Description: bot.applicationCommandsConfig.Help.Description,
+		},
+	}
 	// fetch all global application commands defined by
 	// the bot user
 	registeredCommands, err := session.ApplicationCommands(
@@ -45,8 +56,35 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 		)
 		return e
 	}
-	// delete the fetched global application commands
+	toDelete := make([]*discordgo.ApplicationCommand, 0)
+	toAdd := make([]*discordgo.ApplicationCommand, 0)
+
 	for _, v := range registeredCommands {
+		del := true
+		for _, v2 := range commands {
+			if v.Name == v2.Name && v.Description == v2.Description {
+				del = false
+				break
+			}
+		}
+		if del {
+			toDelete = append(toDelete, v)
+		}
+	}
+	for _, v := range commands {
+		add := true
+		for _, v2 := range registeredCommands {
+			if v.Name == v2.Name && v.Description == v2.Description {
+				add = false
+				break
+			}
+		}
+		if add {
+			toAdd = append(toAdd, v)
+		}
+	}
+	// delete the fetched global application commands
+	for _, v := range toDelete {
 		bot.WithField("Name", v.Name).Trace(
 			"Deleting global application command",
 		)
@@ -65,18 +103,8 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 			return e
 		}
 	}
-	commands := []*discordgo.ApplicationCommand{
-		{
-			Name:        bot.applicationCommandsConfig.Music.Name,
-			Description: bot.applicationCommandsConfig.Music.Description,
-		},
-		{
-			Name:        bot.applicationCommandsConfig.Help.Name,
-			Description: bot.applicationCommandsConfig.Help.Description,
-		},
-	}
 	// register the global application commands
-	for _, cmd := range commands {
+	for _, cmd := range toAdd {
 		bot.WithField("Name", cmd.Name).Trace(
 			"Registering global application command",
 		)
