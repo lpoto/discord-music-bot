@@ -42,6 +42,8 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 }
 
+// forwardButtonClick increments the queue's offset, updates it
+// and then updates the queue message
 func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
 	bot.service.IncrementQueueOffset(queue)
@@ -52,6 +54,8 @@ func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.Interactio
 	bot.onUpdateQueueFromInteraction(s, i)
 }
 
+// backwardButtonClick decrements the queue's offset, updates it
+// and then updates the queue message
 func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
 	bot.service.DecrementQueueOffset(queue)
@@ -62,6 +66,8 @@ func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	bot.onUpdateQueueFromInteraction(s, i)
 }
 
+// pauseButtonClick adds or removes the queue's Paused option, updates it
+// and then updates the queue message
 func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
 	bot.service.AddOrRemoveQueueOption(queue, model.Paused)
@@ -72,6 +78,8 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 	bot.onUpdateQueueFromInteraction(s, i)
 }
 
+// loopButtonClick adds or removes the queue's Loop option, updates it
+// and then updates the queue message
 func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
 	bot.service.AddOrRemoveQueueOption(queue, model.Loop)

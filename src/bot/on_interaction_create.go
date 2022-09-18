@@ -1,6 +1,8 @@
 package bot
 
 import (
+	"time"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -16,7 +18,17 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// interactions on messages authored by the bot
 		return
 	}
-	bot.WithField("GuildID", i.GuildID).Trace("Interaction created")
+	t := time.Now()
+	bot.WithField(
+		"GuildID", i.GuildID,
+	).Tracef("Interaction created (%s)", i.ID)
+
+	defer func() {
+		bot.WithField(
+			"Latency", time.Since(t),
+		).Tracef("Interaction handled (%s)", i.ID)
+
+	}()
 
 	if i.Type == discordgo.InteractionApplicationCommand {
 		// NOTE: an application command has been used,
