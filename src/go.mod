@@ -11,15 +11,15 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/imdario/mergo v0.3.13
 	github.com/jonas747/dca v0.0.0-20210930103944-155f5e5f0cc7
-	github.com/kkdai/youtube/v2 v2.7.15
+	github.com/kkdai/youtube/v2 v2.7.16
 	github.com/sirupsen/logrus v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
 	github.com/bitly/go-simplejson v0.5.0 // indirect
-	github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91 // indirect
-	github.com/dop251/goja v0.0.0-20220516123900-4418d4575a41 // indirect
+	github.com/dlclark/regexp2 v1.7.0 // indirect
+	github.com/dop251/goja v0.0.0-20220719153422-38a3647bcce0 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
