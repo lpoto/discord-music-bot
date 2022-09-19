@@ -35,6 +35,9 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	case bot.builder.Config.Components.Skip:
 		bot.skipButtonClick(s, i)
 		return
+	case bot.builder.Config.Components.Replay:
+		bot.replayButtonClick(s, i)
+		return
 	default:
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -108,7 +111,7 @@ func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 	go func() {
 		// NOTE: if after time the interaction has not been yet
 		// responded to
-		time.Sleep(discordgo.InteractionDeadline - (500 * time.Millisecond))
+		time.Sleep(discordgo.InteractionDeadline - (300 * time.Millisecond))
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredMessageUpdate,
 		})
@@ -123,5 +126,28 @@ func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 		case ap.Interactions <- i.Interaction:
 		}
 		ap.Stop()
+	}
+}
+
+// skipButtonClick skips the currently playing song if any
+func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	go func() {
+		// NOTE: if after time the interaction has not been yet
+		// responded to
+		time.Sleep(discordgo.InteractionDeadline - (300 * time.Millisecond))
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredMessageUpdate,
+		})
+	}()
+
+	if ap, ok := bot.audioplayers[i.GuildID]; ok {
+		// NOTE: add interaction to the ap, so the
+		// play function may update from interaction and
+		// speed up the process
+		// (updating interactions is not limited as default editing)
+		select {
+		case ap.Interactions <- i.Interaction:
+		}
+		ap.Replay()
 	}
 }

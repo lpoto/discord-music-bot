@@ -16,8 +16,7 @@ func (bot *Bot) onUpdateQueueFromInteraction(s *discordgo.Session, i *discordgo.
 
 	queue, err := bot.datastore.GetQueue(clientID, guildID)
 	if err != nil {
-		bot.Errorf("Error when updating queue from interaction: %v", err)
-		return nil
+		return err
 	}
 	embed := bot.builder.MapQueueToEmbed(queue)
 	components := bot.builder.GetMusicQueueComponents(queue)
@@ -29,7 +28,6 @@ func (bot *Bot) onUpdateQueueFromInteraction(s *discordgo.Session, i *discordgo.
 			Components: components,
 		},
 	}); err != nil {
-		bot.Errorf("Error when updating queue from interaction: %v", err)
 		return err
 	}
 	return nil

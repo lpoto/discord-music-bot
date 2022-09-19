@@ -47,57 +47,72 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 		"GuildID", guildID,
 	).Tracef("Playing song: %s", song.Name)
 
-	if err := ap.Play(bot.ctx, song); err != nil {
-		bot.Errorf("Error when playing: %v", err)
-	}
-	if err := bot.datastore.RemoveSongs(
-		// NOTE: the finished song should be removed from the queue
-		s.State.User.ID,
-		guildID,
-		[]uint{song.ID},
-	); err != nil {
-		bot.Errorf(
-			"Error when removing song during play: %v", err,
-		)
+	audioplayerDeffer := func() {
+		// NOTE: audioplayer has stopped streaming.
+		// play the next song, if any
 
-	}
-	// NOTE: when loop option is set, the song should be pushed
-	// to the back of the queue instead of removed
-	queue, err = bot.datastore.GetQueue(queue.ClientID, queue.GuildID)
-	if err != nil {
-		return
-	}
-	if bot.builder.QueueHasOption(queue, model.Loop) {
-		if err := bot.datastore.PersistSongs(
-			s.State.User.ID,
-			guildID,
-			[]*model.Song{song},
-		); err != nil {
-			bot.Errorf(
-				"Error when persisting song during play: %v", err,
+		if !ap.ReplayRequested() {
+			// NOTE: do not remove the song
+			// if replay was requested
+
+			if err := bot.datastore.RemoveSongs(
+				// NOTE: the finished song should be removed
+				// from the queue
+				s.State.User.ID,
+				guildID,
+				[]uint{song.ID},
+			); err != nil {
+				bot.Errorf(
+					"Error when removing song during play: %v", err,
+				)
+
+			}
+			// NOTE: when loop option is set, the song should be pushed
+			// to the back of the queue instead of removed
+			queue, err = bot.datastore.GetQueue(
+				queue.ClientID, queue.GuildID,
 			)
+			if err != nil {
+				return
+			}
+			if bot.builder.QueueHasOption(queue, model.Loop) {
+				if err := bot.datastore.PersistSongs(
+					s.State.User.ID,
+					guildID,
+					[]*model.Song{song},
+				); err != nil {
+					bot.Errorf(
+						"Error when persisting song during play: %v",
+						err,
+					)
+				}
+			}
 		}
-	}
 
-	// NOTE: update the queue after the song has been removed
-	go func() {
+	updateLoop:
+		// NOTE: if the audioplayer has any interactions,
+		// update from those interactions instead of from guildID
+		// updating from interactions is much faster
 		for {
 			select {
 			case i := <-ap.Interactions:
-				if err := bot.onUpdateQueueFromInteraction(s, i); err == nil {
+				if err := bot.onUpdateQueueFromInteraction(
+					s, i,
+				); err == nil {
 					return
 				}
-				break
+				continue updateLoop
 			default:
 				bot.onUpdateQueueFromGuildID(s, guildID)
 				return
 			}
 		}
+	}
 
-	}()
+	if err := ap.Play(bot.ctx, song, audioplayerDeffer); err != nil {
+		bot.Errorf("Error when playing: %v", err)
+	}
 
-	// NOTE: audioplayer has successfully stopped streaming.
-	// play the next song, if any
 	select {
 	case <-bot.ctx.Done():
 		return
@@ -105,4 +120,8 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 		delete(bot.audioplayers, guildID)
 		bot.play(s, guildID, channelID)
 	}
+}
+
+func (bot *Bot) audioPlayerUpdateOnDefer(ap *audioplayer.AudioPlayer) {
+	// NOTE: update the queue after the song has been removed
 }
