@@ -40,7 +40,9 @@ func (service *Service) AddOrRemoveQueueOption(queue *model.Queue, option model.
 			opts = append(opts, o)
 		}
 	}
-	opts = append(opts, option)
+	if len(opts) == len(queue.Options) {
+		opts = append(opts, option)
+	}
 	queue.Options = opts
 }
 

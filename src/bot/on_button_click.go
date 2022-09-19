@@ -77,7 +77,9 @@ func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.Interacti
 // and then updates the queue message
 func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+
 	bot.service.AddOrRemoveQueueOption(queue, model.Paused)
+
 	if err := bot.datastore.UpdateQueue(queue); err != nil {
 		bot.Errorf("Error on pause button click: %v", err)
 		return
