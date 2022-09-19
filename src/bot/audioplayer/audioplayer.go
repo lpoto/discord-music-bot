@@ -12,13 +12,14 @@ import (
 )
 
 type AudioPlayer struct {
-	client           *youtube.Client
+	Interactions     chan *discordgo.Interaction
 	guildID          string
 	session          *discordgo.Session
+	replayRequest    bool
+	client           *youtube.Client
 	streamingSession *dca.StreamingSession
 	encodingSession  *dca.EncodeSession
 	streaming        bool
-	Interactions     chan *discordgo.Interaction
 }
 
 // NewAudioPlayer constructs an object that handles playing
@@ -31,6 +32,7 @@ func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
 		streamingSession: nil,
 		encodingSession:  nil,
 		streaming:        false,
+		replayRequest:    false,
 		Interactions:     make(chan *discordgo.Interaction, 10),
 	}
 }
@@ -51,9 +53,11 @@ func (ap *AudioPlayer) Stop() {
 
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
-func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
+func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song, deferFunc func()) error {
 	ap.streaming = true
 	defer func() { ap.streaming = false }()
+	defer func() { ap.replayRequest = false }()
+	defer deferFunc()
 
 	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
 	if !ok {
@@ -118,6 +122,22 @@ func (ap *AudioPlayer) Unpause() {
 		return
 	}
 	ap.streamingSession.SetPaused(false)
+}
+
+// Replay sets the replayReqested option to the
+// audio player
+func (ap *AudioPlayer) Replay() {
+	if ap.encodingSession == nil {
+		return
+	}
+	ap.replayRequest = true
+	ap.encodingSession.Stop()
+}
+
+// ReplayRequested returns true if the audio player's
+// replayRequested option is set, false otherwise
+func (ap *AudioPlayer) ReplayRequested() bool {
+	return ap.replayRequest
 }
 
 // PlaybackPosition returns the duration of the currently playing
