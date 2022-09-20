@@ -11,4 +11,8 @@ func (bot *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	bot.WithFields(log.Fields{
 		"Username": r.User.Username + " #" + r.User.Discriminator,
 	}).Info("Bot ready")
+
+	s.UpdateListeningStatus(
+		"/" + bot.applicationCommandsConfig.Help.Name,
+	)
 }

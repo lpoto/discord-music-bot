@@ -15,13 +15,14 @@ import (
 
 type Bot struct {
 	*log.Logger
-	ctx                       context.Context
-	service                   *service.Service
-	builder                   *builder.Builder
-	datastore                 *datastore.Datastore
-	youtubeClient             *youtube.YoutubeClient
-	applicationCommandsConfig *ApplicationCommandsConfig
-	audioplayers              map[string]*audioplayer.AudioPlayer
+	ctx                           context.Context
+	service                       *service.Service
+	builder                       *builder.Builder
+	datastore                     *datastore.Datastore
+	youtubeClient                 *youtube.YoutubeClient
+	applicationCommandsConfig     *ApplicationCommandsConfig
+	audioplayers                  map[string]*audioplayer.AudioPlayer
+	queueUpdateInteractionsBuffer map[string]chan *discordgo.Interaction
 }
 
 // NewBot constructs an object that connects the logic in the
@@ -32,14 +33,15 @@ func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *Applicat
 	l.Debug("Creating Discord music bot ...")
 
 	bot := &Bot{
-		ctx:                       ctx,
-		Logger:                    l,
-		service:                   service.NewService(),
-		builder:                   builder.NewBuilder(builderConfig),
-		datastore:                 datastore.NewDatastore(datastoreConfig),
-		youtubeClient:             youtube.NewYoutubeClient(youtubeConfig),
-		applicationCommandsConfig: appCommandsConfig,
-		audioplayers:              make(map[string]*audioplayer.AudioPlayer),
+		ctx:                           ctx,
+		Logger:                        l,
+		service:                       service.NewService(),
+		builder:                       builder.NewBuilder(builderConfig),
+		datastore:                     datastore.NewDatastore(datastoreConfig),
+		youtubeClient:                 youtube.NewYoutubeClient(youtubeConfig),
+		applicationCommandsConfig:     appCommandsConfig,
+		audioplayers:                  make(map[string]*audioplayer.AudioPlayer),
+		queueUpdateInteractionsBuffer: make(map[string]chan *discordgo.Interaction),
 	}
 	l.Info("Discord music bot created")
 	return bot
@@ -88,9 +90,10 @@ func (bot *Bot) Run(token string) {
 	}
 
 	// check if any queues should be removed from datastore
-	bot.checkIfAllQueuesExist(session)
+	bot.cleanDiscordMusicQueues(session)
 
 	defer func() {
+		bot.cleanDiscordMusicQueues(session)
 		bot.Info("Closing discord session ... ")
 		session.Close()
 	}()
@@ -128,10 +131,11 @@ func (bot *Bot) setHandlers(session *discordgo.Session) {
 	session.AddHandler(bot.onInteractionCreate)
 }
 
-// Removes all queue messages from datastore, for which the
-// messages not longer exist in the discord channels
-func (bot *Bot) checkIfAllQueuesExist(session *discordgo.Session) {
-	bot.Debug("Checking if any queues in the datastore should be removed ...")
+// cleanDiscordMusicQueues removes all queue messages from datastore,
+// for which the messages not longer exist in the discord channels.
+// For those that exist, it marks them as paused
+func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
+	bot.Debug("Cleaning up discord music queues ...")
 
 	queues, err := bot.datastore.FindAllQueues()
 	if err != nil {
@@ -141,10 +145,17 @@ func (bot *Bot) checkIfAllQueuesExist(session *discordgo.Session) {
 		return
 	}
 	for _, queue := range queues {
-		bot.service.RemoveQueueOption(queue, model.Paused)
-		bot.datastore.UpdateQueue(queue)
-
-		if err := bot.onUpdateQueueFromGuildID(session, queue.GuildID); err != nil {
+		queue, err := bot.datastore.GetQueueData(queue)
+		if err == nil {
+			if queue.Size > 0 {
+				bot.service.AddQueueOption(queue, model.Paused)
+			} else {
+				bot.service.RemoveQueueOption(queue, model.Paused)
+			}
+			bot.datastore.UpdateQueue(queue)
+			err = bot.updateQueue(session, queue.GuildID)
+		}
+		if err != nil {
 			if err := bot.datastore.RemoveQueue(
 				queue.ClientID,
 				queue.GuildID,
@@ -156,5 +167,4 @@ func (bot *Bot) checkIfAllQueuesExist(session *discordgo.Session) {
 			}
 		}
 	}
-
 }

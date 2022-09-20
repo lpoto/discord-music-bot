@@ -12,19 +12,19 @@ import (
 )
 
 type AudioPlayer struct {
-	Interactions     chan *discordgo.Interaction
 	guildID          string
 	session          *discordgo.Session
-	replayRequest    bool
 	client           *youtube.Client
 	streamingSession *dca.StreamingSession
 	encodingSession  *dca.EncodeSession
 	streaming        bool
+	defaultDeferFunc func(*discordgo.Session, string)
+	deferFuncBuffer  chan func(*discordgo.Session, string)
 }
 
 // NewAudioPlayer constructs an object that handles playing
 // audio in a discord's voice channel
-func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
+func NewAudioPlayer(session *discordgo.Session, guildID string, defaultDeferFunc func(*discordgo.Session, string)) *AudioPlayer {
 	return &AudioPlayer{
 		client:           &youtube.Client{},
 		guildID:          guildID,
@@ -32,8 +32,8 @@ func NewAudioPlayer(session *discordgo.Session, guildID string) *AudioPlayer {
 		streamingSession: nil,
 		encodingSession:  nil,
 		streaming:        false,
-		replayRequest:    false,
-		Interactions:     make(chan *discordgo.Interaction, 10),
+		defaultDeferFunc: defaultDeferFunc,
+		deferFuncBuffer:  make(chan func(*discordgo.Session, string), 10),
 	}
 }
 
@@ -53,16 +53,16 @@ func (ap *AudioPlayer) Stop() {
 
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
-func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song, deferFunc func()) error {
+func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	ap.streaming = true
 	defer func() { ap.streaming = false }()
-	defer func() { ap.replayRequest = false }()
-	defer deferFunc()
 
 	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
 	if !ok {
 		return errors.New("Not connected to voice")
 	}
+
+	defer ap.getDefferFunc()(ap.session, ap.guildID)
 
 	video, err := ap.client.GetVideo(song.Url)
 
@@ -124,20 +124,14 @@ func (ap *AudioPlayer) Unpause() {
 	ap.streamingSession.SetPaused(false)
 }
 
-// Replay sets the replayReqested option to the
-// audio player
-func (ap *AudioPlayer) Replay() {
-	if ap.encodingSession == nil {
-		return
+// AddDeferFunc adds the provided function to the deferFuncBuffer.
+// Functions in this buffer are then called when the player finishes,
+// instead of the default defer func.
+func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
+	select {
+	case ap.deferFuncBuffer <- f:
+	default:
 	}
-	ap.replayRequest = true
-	ap.encodingSession.Stop()
-}
-
-// ReplayRequested returns true if the audio player's
-// replayRequested option is set, false otherwise
-func (ap *AudioPlayer) ReplayRequested() bool {
-	return ap.replayRequest
 }
 
 // PlaybackPosition returns the duration of the currently playing
@@ -149,4 +143,26 @@ func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 	}
 	return ap.streamingSession.PlaybackPosition().Truncate(time.Second)
 
+}
+
+// getDefferFunc returns the function that should be called when the
+// audioplayer finishes. If any functions were added to the
+// deferFuncBuffer, all those are used, if none were added, the
+// defaultFunc, added in the constructor, is returned.
+func (ap *AudioPlayer) getDefferFunc() func(*discordgo.Session, string) {
+	return func(s *discordgo.Session, guildID string) {
+		if len(ap.deferFuncBuffer) == 0 {
+			ap.defaultDeferFunc(s, guildID)
+			return
+		}
+		for i := 0; i < len(ap.deferFuncBuffer); i++ {
+			select {
+			case f, ok := <-ap.deferFuncBuffer:
+				if !ok {
+					return
+				}
+				f(s, guildID)
+			}
+		}
+	}
 }
