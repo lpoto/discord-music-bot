@@ -147,14 +147,11 @@ func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
 		return
 	}
 	for _, queue := range queues {
-		queue, err := bot.datastore.GetQueueData(queue)
+		bot.service.RemoveQueueOption(queue, model.Paused)
+		bot.service.AddQueueOption(queue, model.Inactive)
+
+		err := bot.datastore.UpdateQueue(queue)
 		if err == nil {
-			if queue.Size > 0 {
-				bot.service.AddQueueOption(queue, model.Paused)
-			} else {
-				bot.service.RemoveQueueOption(queue, model.Paused)
-			}
-			bot.datastore.UpdateQueue(queue)
 			err = bot.updateQueue(session, queue.GuildID)
 		}
 		if err != nil {

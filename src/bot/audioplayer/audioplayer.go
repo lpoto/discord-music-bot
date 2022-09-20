@@ -5,7 +5,6 @@ import (
 	"discord-music-bot/model"
 	"errors"
 	"io"
-	"log"
 	"time"
 
 	"github.com/bwmarrin/discordgo"

@@ -9,9 +9,10 @@ import (
 type QueueOption string
 
 const (
-	Loop   QueueOption = "loop"
-	Paused QueueOption = "paused"
-	Test   QueueOption = "test"
+	Loop     QueueOption = "loop"
+	Paused   QueueOption = "paused"
+	Inactive QueueOption = "inactive"
+	Test     QueueOption = "test"
 )
 
 type Queue struct {

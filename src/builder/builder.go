@@ -20,6 +20,7 @@ type ComponentsConfig struct {
 	Replay   string `yaml:"Replay" validate:"required"`
 	AddSongs string `yaml:"AddSongs" validate:"required"`
 	Loop     string `yaml:"Loop" validate:"required"`
+	Join     string `yaml:"Join" validate:"required"`
 }
 
 // NewBuilder constructs an object that handles building

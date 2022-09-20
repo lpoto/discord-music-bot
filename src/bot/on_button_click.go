@@ -41,6 +41,9 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	case bot.builder.Config.Components.Replay:
 		bot.replayButtonClick(s, i)
 		return
+	case bot.builder.Config.Components.Join:
+		bot.joinButtonClick(s, i)
+		return
 	default:
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -222,4 +225,21 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 		bot.updateQueue(s, guildID)
 	})
 	ap.Stop()
+}
+
+// joinButtonClick removes the inactive option from the queue, updates
+// it and then updates the queue message
+func (bot *Bot) joinButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	queue, err := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	if err != nil {
+		bot.Errorf("Error on join button click: %v", err)
+		return
+	}
+	bot.service.RemoveQueueOption(queue, model.Inactive)
+	if err := bot.datastore.UpdateQueue(queue); err == nil {
+		bot.updateQueue(s, i.GuildID)
+	} else {
+		bot.Errorf("Error on join button click: %v", err)
+	}
 }

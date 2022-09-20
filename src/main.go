@@ -81,7 +81,7 @@ func main() {
 		log.Warn("Shutdown requested ...")
 		cancel()
 		select {
-		case <-time.After(time.Second * 5):
+		case <-time.After(time.Second * 10):
 		}
 		log.Fatal("Forced shutdown")
 	}()
