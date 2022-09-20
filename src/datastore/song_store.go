@@ -311,6 +311,48 @@ func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []u
 	return nil
 }
 
+// PushLastSongToFront places the song with the max song position to the front
+// of the queue, by setting it's position 1 less than the song with min position
+func (datastore *Datastore) PushLastSongToFront(clientID string, guildID string) error {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Push last song to front", i)
+
+	minPosition, err := datastore.getMinSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	maxPosition, err := datastore.getMaxSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	if _, err := datastore.Exec(
+		`
+        UPDATE "song" SET
+        position = $1
+        WHERE "song".position = $2 AND
+        "song".queue_client_id = $3 AND
+        "song".queue_guild_id = $4 AND
+        `,
+		minPosition-1,
+		maxPosition,
+		clientID,
+		guildID,
+	); err != nil {
+		datastore.Errorf("[%d]Error: %v", i, err)
+		return err
+	}
+	datastore.WithField("Latency", time.Since(t)).Tracef(
+		"[%d]Done : Pushed last song to front", i,
+	)
+	return nil
+}
+
 func (datastore *Datastore) createSongTable() error {
 	i, t := datastore.getIdx(), time.Now()
 
@@ -376,5 +418,35 @@ func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) 
 	datastore.WithField(
 		"Latency", time.Since(t),
 	).Tracef("[%d]Done : Fetched max song position (%d)", i, position)
+	return position, nil
+}
+
+func (datastore *Datastore) getMinSongPosition(clientID string, guildID string) (int, error) {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Fetch min song position for queue", i)
+
+	var position int = 0
+	if err := datastore.QueryRow(
+		`
+        SELECT COALESCE(MIN(s.position), 0)
+        FROM "song" s
+        WHERE s.queue_guild_id = $1 AND
+            s.queue_client_id = $2
+    `,
+		guildID,
+		clientID,
+	).Scan(&position); err != nil {
+		datastore.Tracef(
+			"[%d]Error: %v", i, err,
+		)
+		return 0, err
+	}
+	datastore.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[%d]Done : Fetched min song position (%d)", i, position)
 	return position, nil
 }
