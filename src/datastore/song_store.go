@@ -67,7 +67,7 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 		)
 	}
 	if _, err := datastore.Exec(s); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
 	datastore.WithField(
@@ -133,7 +133,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
     WHERE s.id = s2.id;
     `
 	if _, err := datastore.Exec(s); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
 	datastore.WithField(
@@ -168,7 +168,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 		offset,
 		limit,
 	); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return nil, err
 	} else {
 		songs := make([]*model.Song, 0)
@@ -181,7 +181,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 				&song.DurationSeconds, &song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
-				datastore.Errorf(
+				datastore.Tracef(
 					"[%d]Error: %v", i, err,
 				)
 				return nil, err
@@ -219,7 +219,7 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return nil, err
 	} else {
 		songs := make([]*model.Song, 0)
@@ -232,7 +232,7 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 				&song.DurationSeconds, &song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
-				datastore.Errorf(
+				datastore.Tracef(
 					"[%d]Error: %v", i, err,
 				)
 				return nil, err
@@ -245,6 +245,50 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 		)
 		return songs, nil
 	}
+}
+
+// GetLastSongInQueue returns the song in the queue with the largest
+// position
+func (datastore *Datastore) GetLastSongInQueue(clientID string, guildID string) (*model.Song, error) {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Get last song in queue", i)
+
+	maxPosition, err := datastore.getMaxSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return nil, err
+	}
+
+	song := &model.Song{}
+	var ignore string
+
+	if err := datastore.QueryRow(
+		`
+        SELECT * FROM "song"
+        WHERE "song".queue_client_id = $1 AND
+            "song".queue_guild_id = $2 AND
+            "song".position = $3;
+        `,
+		clientID,
+		guildID,
+		maxPosition,
+	).Scan(
+		&song.ID, &song.Position,
+		&song.Name, &song.ShortName, &song.Url,
+		&song.DurationSeconds, &song.DurationString,
+		&song.Color, &ignore, &ignore,
+	); err != nil || song.Name == "" {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return nil, err
+	}
+	datastore.WithField("Latency", time.Since(t)).Tracef(
+		"[%d]Done : Got last song in queue", i,
+	)
+	return song, nil
 }
 
 // GetSongCountForQueue returns the number of songs that belong
@@ -267,7 +311,7 @@ func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string
 		clientID,
 		guildID,
 	).Scan(&count); err != nil {
-		datastore.Errorf(
+		datastore.Tracef(
 			"[%d]Error: %v", i, err,
 		)
 		count = 0
@@ -301,7 +345,7 @@ func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []u
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Errorf(
+		datastore.Tracef(
 			"[%d]Error: %v", i, err,
 		)
 	}
@@ -337,14 +381,14 @@ func (datastore *Datastore) PushLastSongToFront(clientID string, guildID string)
         position = $1
         WHERE "song".position = $2 AND
         "song".queue_client_id = $3 AND
-        "song".queue_guild_id = $4 AND
+        "song".queue_guild_id = $4;
         `,
 		minPosition-1,
 		maxPosition,
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
 	datastore.WithField("Latency", time.Since(t)).Tracef(

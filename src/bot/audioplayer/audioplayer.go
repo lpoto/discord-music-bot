@@ -4,6 +4,8 @@ import (
 	"context"
 	"discord-music-bot/model"
 	"errors"
+	"io"
+	"log"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -19,12 +21,13 @@ type AudioPlayer struct {
 	encodingSession  *dca.EncodeSession
 	streaming        bool
 	defaultDeferFunc func(*discordgo.Session, string)
+	errorDeferFunc   func(*discordgo.Session, string)
 	deferFuncBuffer  chan func(*discordgo.Session, string)
 }
 
 // NewAudioPlayer constructs an object that handles playing
 // audio in a discord's voice channel
-func NewAudioPlayer(session *discordgo.Session, guildID string, defaultDeferFunc func(*discordgo.Session, string)) *AudioPlayer {
+func NewAudioPlayer(session *discordgo.Session, guildID string, defaultDeferFunc func(*discordgo.Session, string), errorDeferFunc func(*discordgo.Session, string)) *AudioPlayer {
 	return &AudioPlayer{
 		client:           &youtube.Client{},
 		guildID:          guildID,
@@ -33,6 +36,7 @@ func NewAudioPlayer(session *discordgo.Session, guildID string, defaultDeferFunc
 		encodingSession:  nil,
 		streaming:        false,
 		defaultDeferFunc: defaultDeferFunc,
+		errorDeferFunc:   errorDeferFunc,
 		deferFuncBuffer:  make(chan func(*discordgo.Session, string), 10),
 	}
 }
@@ -68,16 +72,16 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		return errors.New("Not connected to voice")
 	}
 
-	defer ap.getDefferFunc()(ap.session, ap.guildID)
-
 	video, err := ap.client.GetVideo(song.Url)
 
 	if err != nil {
+		ap.errorDeferFunc(ap.session, ap.guildID)
 		return err
 	}
 	formats := video.Formats.WithAudioChannels()
 	url, err := ap.client.GetStreamURL(video, &formats[0])
 	if err != nil {
+		ap.errorDeferFunc(ap.session, ap.guildID)
 		return err
 	}
 
@@ -88,6 +92,7 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 
 	ap.encodingSession, err = dca.EncodeFile(url, options)
 	if err != nil {
+		ap.errorDeferFunc(ap.session, ap.guildID)
 		return err
 	}
 	defer func() {
@@ -105,10 +110,17 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 
 	done := ctx.Done()
 
+	t := time.Now()
 	for {
 		select {
 		case <-done:
-		case <-streamingDone:
+		case err := <-streamingDone:
+			if err != io.EOF && err != io.ErrUnexpectedEOF ||
+				time.Since(t) <= time.Second {
+				ap.errorDeferFunc(ap.session, ap.guildID)
+			} else {
+				ap.getDefferFunc()(ap.session, ap.guildID)
+			}
 			return nil
 		}
 	}

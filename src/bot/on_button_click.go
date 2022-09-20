@@ -35,6 +35,9 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	case bot.builder.Config.Components.Skip:
 		bot.skipButtonClick(s, i)
 		return
+	case bot.builder.Config.Components.Previous:
+		bot.previousButtonClick(s, i)
+		return
 	case bot.builder.Config.Components.Replay:
 		bot.replayButtonClick(s, i)
 		return
@@ -178,6 +181,44 @@ func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.Interaction
 	// NOTE: when audioplayer finishes, only update the queue, but don't
 	// remove any songs
 	ap.AddDeferFunc(func(s *discordgo.Session, guildID string) {
+		bot.updateQueue(s, guildID)
+	})
+	ap.Stop()
+}
+
+// previousButtonClick adds a different defer func to the audioplayer, that adds
+// the queue's previous  song as its head song, and restarts the player.
+func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+
+	if _, ok := bot.blockedButtons[i.GuildID]["PREVIOUS"]; ok {
+		return
+	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "PREVIOUS")
+		}
+	}()
+	time.Sleep(500 * time.Millisecond)
+
+	ap, ok := bot.audioplayers[i.GuildID]
+	if !ok || ap.IsPaused() {
+		return
+	}
+	queue, err := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	if err != nil {
+		bot.Errorf("Error on previous button click: %v", err)
+		return
+	}
+	if queue.PreviousSong == nil && !(queue.Size > 1 && bot.builder.QueueHasOption(queue, model.Loop)) {
+		return
+	}
+	// NOTE: when audioplayer finishes, only update the queue, but don't
+	// remove any songs
+	ap.AddDeferFunc(func(s *discordgo.Session, guildID string) {
+		if bot.builder.QueueHasOption(queue, model.Loop) {
+			bot.datastore.PushLastSongToFront(s.State.User.ID, guildID)
+		}
 		bot.updateQueue(s, guildID)
 	})
 	ap.Stop()

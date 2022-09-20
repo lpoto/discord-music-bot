@@ -15,16 +15,17 @@ const (
 )
 
 type Queue struct {
-	ClientID  string        `json:"client_id"`
-	GuildID   string        `json:"guild_id"`
-	MessageID string        `json:"message_id"`
-	ChannelID string        `json:"channel_id"`
-	Offset    int           `json:"offset"`
-	Limit     int           `json:"limit"`
-	Options   []QueueOption `json:"options"`
-	Songs     []*Song       `json:"songs"`
-	HeadSong  *Song         `json:"head_song"`
-	Size      int           `json:"size"`
+	ClientID     string        `json:"client_id"`
+	GuildID      string        `json:"guild_id"`
+	MessageID    string        `json:"message_id"`
+	ChannelID    string        `json:"channel_id"`
+	Offset       int           `json:"offset"`
+	Limit        int           `json:"limit"`
+	Options      []QueueOption `json:"options"`
+	Songs        []*Song       `json:"songs"`
+	HeadSong     *Song         `json:"head_song"`
+	PreviousSong *Song         `json:"previous_song"`
+	Size         int           `json:"size"`
 }
 
 // ParseQueueOption converts the provided

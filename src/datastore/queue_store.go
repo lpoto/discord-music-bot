@@ -300,3 +300,13 @@ func (datastore *Datastore) createQueueTable() error {
 	)
 	return nil
 }
+
+// queueHasOption checks if the provided queue has the provided option set
+func (datastore *Datastore) queueHasOption(queue *model.Queue, option model.QueueOption) bool {
+	for _, o := range queue.Options {
+		if option == o {
+			return true
+		}
+	}
+	return false
+}
