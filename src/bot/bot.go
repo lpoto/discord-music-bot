@@ -23,6 +23,7 @@ type Bot struct {
 	applicationCommandsConfig     *ApplicationCommandsConfig
 	audioplayers                  map[string]*audioplayer.AudioPlayer
 	queueUpdateInteractionsBuffer map[string]chan *discordgo.Interaction
+	blockedButtons                map[string]map[string]struct{}
 }
 
 // NewBot constructs an object that connects the logic in the
@@ -42,6 +43,7 @@ func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *Applicat
 		applicationCommandsConfig:     appCommandsConfig,
 		audioplayers:                  make(map[string]*audioplayer.AudioPlayer),
 		queueUpdateInteractionsBuffer: make(map[string]chan *discordgo.Interaction),
+		blockedButtons:                make(map[string]map[string]struct{}),
 	}
 	l.Info("Discord music bot created")
 	return bot

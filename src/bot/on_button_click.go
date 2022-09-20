@@ -2,6 +2,7 @@ package bot
 
 import (
 	"discord-music-bot/model"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -77,6 +78,17 @@ func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.Interacti
 // pauseButtonClick adds or removes the queue's Paused option, updates it
 // and then updates the queue message
 func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	if _, ok := bot.blockedButtons[i.GuildID]["PAUSE"]; ok {
+		return
+	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "PAUSE")
+		}
+	}()
+	time.Sleep(300 * time.Millisecond)
+
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
 
 	bot.service.AddOrRemoveQueueOption(queue, model.Paused)
@@ -85,7 +97,6 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 		bot.Errorf("Error on pause button click: %v", err)
 		return
 	}
-	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
 	bot.updateQueue(s, i.GuildID)
 
 	// Pause the currently playing song, if any
@@ -101,13 +112,23 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 // loopButtonClick adds or removes the queue's Loop option, updates it
 // and then updates the queue message
 func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	if _, ok := bot.blockedButtons[i.GuildID]["LOOP"]; ok {
+		return
+	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "LOOP")
+		}
+	}()
+	time.Sleep(300 * time.Millisecond)
+
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
 	bot.service.AddOrRemoveQueueOption(queue, model.Loop)
 	if err := bot.datastore.UpdateQueue(queue); err != nil {
 		bot.Errorf("Error on loop button click: %v", err)
 		return
 	}
-	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
 	bot.updateQueue(s, i.GuildID)
 }
 
@@ -115,7 +136,22 @@ func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
 
-	if ap, ok := bot.audioplayers[i.GuildID]; ok {
+	if _, ok := bot.blockedButtons[i.GuildID]["SKIP"]; ok {
+		// NOTE: someone already pressed the sip button
+		// in the server.
+		// Don't allow multiple people clicking at the same
+		// time, to prevent skipping multiple songs at once
+		return
+	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "SKIP")
+		}
+	}()
+
+	time.Sleep(500 * time.Millisecond)
+
+	if ap, ok := bot.audioplayers[i.GuildID]; ok && !ap.IsPaused() {
 		ap.Stop()
 	}
 }
@@ -125,10 +161,22 @@ func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
 
-	ap, ok := bot.audioplayers[i.GuildID]
-	if !ok {
+	if _, ok := bot.blockedButtons[i.GuildID]["REPLAY"]; ok {
 		return
 	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "REPLAY")
+		}
+	}()
+	time.Sleep(500 * time.Millisecond)
+
+	ap, ok := bot.audioplayers[i.GuildID]
+	if !ok || ap.IsPaused() {
+		return
+	}
+	// NOTE: when audioplayer finishes, only update the queue, but don't
+	// remove any songs
 	ap.AddDeferFunc(func(s *discordgo.Session, guildID string) {
 		bot.updateQueue(s, guildID)
 	})

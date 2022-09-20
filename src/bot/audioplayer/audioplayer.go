@@ -43,6 +43,12 @@ func (ap *AudioPlayer) IsPlaying() bool {
 	return ap.streaming
 }
 
+// IsPaused returns true if the audioplayer is currenthly
+// paused, false otherwise
+func (ap *AudioPlayer) IsPaused() bool {
+	return ap.streamingSession.Paused()
+}
+
 // Stop stops the current stream, if there is any
 func (ap *AudioPlayer) Stop() {
 	if ap.encodingSession == nil {
