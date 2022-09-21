@@ -25,11 +25,12 @@ type Bot struct {
 	audioplayers                  map[string]*audioplayer.AudioPlayer
 	queueUpdateInteractionsBuffer map[string]chan *discordgo.Interaction
 	blockedButtons                map[string]map[string]struct{}
+	audioplayerConfig             *audioplayer.Configuration
 }
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration, youtubeConfig *youtube.Configuration) *Bot {
+func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration, youtubeConfig *youtube.Configuration, apConfig *audioplayer.Configuration) *Bot {
 	l := log.New()
 	l.SetLevel(logLevel)
 	l.Debug("Creating Discord music bot ...")
@@ -46,6 +47,7 @@ func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *Applicat
 		audioplayers:                  make(map[string]*audioplayer.AudioPlayer),
 		queueUpdateInteractionsBuffer: make(map[string]chan *discordgo.Interaction),
 		blockedButtons:                make(map[string]map[string]struct{}),
+		audioplayerConfig:             apConfig,
 	}
 	l.Info("Discord music bot created")
 	return bot

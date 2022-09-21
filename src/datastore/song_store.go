@@ -93,7 +93,7 @@ func (datastore *Datastore) PersistSongToFront(clientID string, guildID string, 
 		guildID,
 	)
 	if err != nil {
-		datastore.Errorf("[%d]Error: %v", err)
+		datastore.Errorf("[%d]Error: %v", i, err)
 		return err
 	}
 

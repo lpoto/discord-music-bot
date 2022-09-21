@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"discord-music-bot/bot"
+	"discord-music-bot/bot/audioplayer"
 	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/config"
 	"discord-music-bot/datastore"
 	"flag"
+	"io/ioutil"
+	defaultLog "log"
 	"os"
 	"os/signal"
 	"strings"
@@ -27,6 +30,7 @@ type Configuration struct {
 	Datastore           *datastore.Configuration       `yaml:"Datastore" validate:"required"`
 	QueueBuilder        *builder.Configuration         `yaml:"QueueBuilder" validate:"required"`
 	ApplicationCommands *bot.ApplicationCommandsConfig `yaml:"ApplicationCommands" validate:"required"`
+	AudioPlayer         *audioplayer.Configuration     `yaml:"AudioPlayer" validate:"required"`
 	Youtube             *youtube.Configuration         `yaml:"Youtube" validate:"required"`
 }
 
@@ -40,6 +44,7 @@ func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 		configuration.QueueBuilder,
 		configuration.Datastore,
 		configuration.Youtube,
+		configuration.AudioPlayer,
 	)
 	if err := bot.Init(); err != nil {
 		log.Panic(err)
@@ -60,6 +65,7 @@ func loadConfig(configFiles []string) *Configuration {
 }
 
 func main() {
+	defaultLog.SetOutput(ioutil.Discard)
 	configFileParam := flag.String(
 		"configFiles",
 		"config.yaml",

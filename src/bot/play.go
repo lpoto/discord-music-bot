@@ -28,8 +28,11 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 
 	ap := audioplayer.NewAudioPlayer(
 		s, guildID,
-		bot.audioplayerDefaultDefer,
-		bot.audioplayerDefaultErrorDefer,
+		bot.audioplayerConfig,
+		audioplayer.NewDeferFunctions(
+			bot.audioplayerDefaultDefer,
+			bot.audioplayerDefaultErrorDefer,
+		),
 	)
 
 	bot.audioplayers[guildID] = ap

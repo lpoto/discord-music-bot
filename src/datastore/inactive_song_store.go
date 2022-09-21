@@ -97,7 +97,7 @@ func (datastore *Datastore) PopLatestInactiveSong(clientID string, guildID strin
 		&song.Url, &song.DurationSeconds, &song.DurationString,
 		&song.Color, &ignore, &ignore, &ignore,
 	); err != nil {
-		datastore.Tracef("[%d]Error: %v", err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return nil, err
 	}
 	song.Name = datastore.unescapeSingleQuotes(song.Name)
@@ -150,7 +150,7 @@ func (datastore *Datastore) GetInactiveSongCountForQueue(clientID string, guildI
 func (datastore *Datastore) createInactiveSongTable() error {
 	i, t := datastore.getIdx(), time.Now()
 
-	datastore.WithField("TableName", "inactive_song").Debugf(
+	datastore.WithField("TableName", "inactive_song").Tracef(
 		"[%d]Start: Create psql table (if not exists)", i,
 	)
 

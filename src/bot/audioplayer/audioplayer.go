@@ -3,167 +3,169 @@ package audioplayer
 import (
 	"context"
 	"discord-music-bot/model"
+	"encoding/binary"
 	"errors"
 	"io"
+	"net/http"
+	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/jonas747/dca"
 	"github.com/kkdai/youtube/v2"
 )
 
+type Configuration struct {
+	Channels  int `yaml:"Channels" validate:"gt=0"`
+	FrameRate int `yaml:"FrameRate" validate:"gt=0"`
+	FrameSize int `yaml:"FrameSize" validate:"gt=0"`
+	Retry     int `yaml:"Retry" validate:"gte=0"`
+}
+
 type AudioPlayer struct {
-	guildID          string
-	session          *discordgo.Session
-	client           *youtube.Client
-	streamingSession *dca.StreamingSession
-	encodingSession  *dca.EncodeSession
-	streaming        bool
-	defaultDeferFunc func(*discordgo.Session, string)
-	errorDeferFunc   func(*discordgo.Session, string)
-	deferFuncBuffer  chan func(*discordgo.Session, string)
-	stop             bool
+	config  *Configuration
+	guildID string
+	session *discordgo.Session
+	client  *youtube.Client
+	funcs   *DeferFunctions
+	pcm     *PCM
+	stop    bool
+	pause   bool
+}
+
+type DeferFunctions struct {
+	defaultOnSuccess func(*discordgo.Session, string)
+	onFailure        func(*discordgo.Session, string)
+	onSuccessBuffer  chan func(*discordgo.Session, string)
 }
 
 // NewAudioPlayer constructs an object that handles playing
 // audio in a discord's voice channel
-func NewAudioPlayer(session *discordgo.Session, guildID string, defaultDeferFunc func(*discordgo.Session, string), errorDeferFunc func(*discordgo.Session, string)) *AudioPlayer {
+func NewAudioPlayer(session *discordgo.Session, guildID string, config *Configuration, funcs *DeferFunctions) *AudioPlayer {
 	return &AudioPlayer{
-		client:           &youtube.Client{},
-		guildID:          guildID,
-		session:          session,
-		streamingSession: nil,
-		encodingSession:  nil,
-		streaming:        false,
-		defaultDeferFunc: defaultDeferFunc,
-		errorDeferFunc:   errorDeferFunc,
-		deferFuncBuffer:  make(chan func(*discordgo.Session, string), 10),
-		stop:             false,
+		config:  config,
+		client:  &youtube.Client{},
+		guildID: guildID,
+		session: session,
+		funcs:   funcs,
+		pcm:     nil,
+		stop:    false,
+		pause:   false,
 	}
 }
 
-// IsPlaying returns true if the audioplayer is currenthly
-// streaming some audio, false otherwise
-func (ap *AudioPlayer) IsPlaying() bool {
-	return ap.streaming
-}
-
-// IsPaused returns true if the audioplayer is currenthly
-// paused, false otherwise
-func (ap *AudioPlayer) IsPaused() bool {
-	if ap.streamingSession == nil {
-		return false
+// NewDeferFunctions constructs an object that holds functions called
+// when the audioplayer finishes. If pleyer finishes with an error, the onFailure
+// function is called, else if it successfully finishes, if any functions are present
+// in the onSuccessBuffer, those are called, otherwise the defaultOnSuccess is called
+func NewDeferFunctions(success func(*discordgo.Session, string), err func(*discordgo.Session, string)) *DeferFunctions {
+	return &DeferFunctions{
+		defaultOnSuccess: success,
+		onFailure:        err,
+		onSuccessBuffer:  make(chan func(*discordgo.Session, string), 5),
 	}
-	return ap.streamingSession.Paused()
-}
-
-// Stop stops the current stream, if there is any
-func (ap *AudioPlayer) Stop() {
-	ap.stop = true
-	if ap.encodingSession == nil {
-		return
-	}
-	ap.encodingSession.Stop()
 }
 
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
 func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
-	ap.streaming = true
-	defer func() { ap.streaming = false }()
-
 	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
 	if !ok {
 		return errors.New("Not connected to voice")
 	}
 
-	video, err := ap.client.GetVideo(song.Url)
+	voiceConnection.Speaking(true)
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	pcmChannel := make(chan []int16, 2)
+
+	ap.pcm = NewPCM(ap.config, pcmChannel, voiceConnection)
+	go ap.pcm.Run(ctx)
+
+	defer func() {
+		ap.pcm = nil
+		cancel()
+		voiceConnection.Speaking(false)
+	}()
+
+	body, err := ap.getStreamBody(song.Url)
 
 	if err != nil {
-		ap.errorDeferFunc(ap.session, ap.guildID)
+		ap.funcs.onFailure(ap.session, ap.guildID)
 		return err
 	}
-	formats := video.Formats.WithAudioChannels()
-	url, err := ap.client.GetStreamURL(video, &formats[0])
-	if err != nil {
-		ap.errorDeferFunc(ap.session, ap.guildID)
-		return err
-	}
+	defer body.Close()
 
-	options := dca.StdEncodeOptions
-	options.RawOutput = true
-	options.Bitrate = 96
-	options.Application = "lowdelay"
+	var streamAudio func(int) error
 
-	var startStreaming func(int) error
-
-	// NOTE: try to stream 3 times...
-	// if unsuccessful, call the errorDeferFunc and return
-	startStreaming = func(retries int) error {
-		if retries > 2 {
-			ap.errorDeferFunc(ap.session, ap.guildID)
-			return nil
-		} else if ap.stop {
-			ap.getDefferFunc()(ap.session, ap.guildID)
+	streamAudio = func(retry int) error {
+		if ap.stop {
+			ap.funcs.getDeferFunc()(ap.session, ap.guildID)
 			return nil
 		}
-
-		ap.encodingSession, err = dca.EncodeFile(url, options)
+		if retry >= 3 {
+			ap.funcs.onFailure(ap.session, ap.guildID)
+			return nil
+		}
+		stdout, err := ap.runFFmpegCommand(body)
 		if err != nil {
-			ap.errorDeferFunc(ap.session, ap.guildID)
+			ap.funcs.onFailure(ap.session, ap.guildID)
 			return err
 		}
-		defer func() {
-			if ap.encodingSession != nil {
-				ap.encodingSession.Cleanup()
-				ap.encodingSession = nil
-			}
-		}()
-
-		streamingDone := make(chan error)
-		ap.streamingSession = dca.NewStream(
-			ap.encodingSession,
-			voiceConnection,
-			streamingDone,
-		)
-		defer func() { ap.streamingSession = nil }()
 
 		done := ctx.Done()
 
-		t := time.Now()
+		// buffer used during loop below
+		audiobuf := make([]int16, ap.config.FrameSize*ap.config.Channels)
+	streamLoop:
 		for {
 			select {
 			case <-done:
-			case err := <-streamingDone:
-				if err != io.EOF && err != io.ErrUnexpectedEOF {
-					ap.errorDeferFunc(ap.session, ap.guildID)
-				} else if time.Since(t) <= 2*time.Second {
-					return startStreaming(retries + 1)
-				} else {
-					ap.getDefferFunc()(ap.session, ap.guildID)
-				}
 				return nil
 			default:
+				if ap.stop {
+					ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+					return nil
+				}
+				if ap.pause {
+					continue streamLoop
+				}
+				// read data from ffmpeg stdout
+				err = binary.Read(stdout, binary.LittleEndian, &audiobuf)
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+					return nil
+				}
+				if err != nil {
+					return streamAudio(retry + 1)
+				}
+				pcmChannel <- audiobuf
 			}
 		}
 	}
-	return startStreaming(0)
+	return streamAudio(0)
 }
 
 // Pause pauses the currently streaming session if any
 func (ap *AudioPlayer) Pause() {
-	if ap.streamingSession == nil {
-		return
-	}
-	ap.streamingSession.SetPaused(true)
+	ap.pause = true
 }
 
 // Pause unpauses the currently streaming session if any
 func (ap *AudioPlayer) Unpause() {
-	if ap.streamingSession == nil {
-		return
-	}
-	ap.streamingSession.SetPaused(false)
+	ap.pause = false
+}
+
+// IsPaused returns true if the audioplayer is currenthly
+// paused, false otherwise
+func (ap *AudioPlayer) IsPaused() bool {
+	return ap.pause
+}
+
+// Stop stops the current stream, if there is any
+func (ap *AudioPlayer) Stop() {
+	ap.stop = true
 }
 
 // AddDeferFunc adds the provided function to the deferFuncBuffer.
@@ -171,8 +173,7 @@ func (ap *AudioPlayer) Unpause() {
 // instead of the default defer func.
 func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
 	select {
-	case ap.deferFuncBuffer <- f:
-		time.Sleep(100 * time.Millisecond)
+	case ap.funcs.onSuccessBuffer <- f:
 	default:
 	}
 }
@@ -181,10 +182,59 @@ func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
 // stream already streamed, rounded to seconds. Returns 0 if nothing
 // is playing.
 func (ap *AudioPlayer) PlaybackPosition() time.Duration {
-	if ap.streamingSession == nil {
-		return 0
+	return 0
+}
+
+// getStreamBody gets the stream url from youtube from
+// the provided url, then calls a http request and fetches the body
+// for the stream
+func (ap *AudioPlayer) getStreamBody(url string) (io.ReadCloser, error) {
+	video, err := ap.client.GetVideo(url)
+	if err != nil {
+		return nil, err
 	}
-	return ap.streamingSession.PlaybackPosition().Truncate(time.Second)
+	var f func(int) (io.ReadCloser, error)
+
+	f = func(retries int) (io.ReadCloser, error) {
+		if retries > 2 {
+			return nil, errors.New("Status code != 200")
+		}
+		formats := video.Formats.WithAudioChannels()
+		url, err = ap.client.GetStreamURL(video, &formats[0])
+		resp, err := http.Get(url)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			return f(retries + 1)
+		}
+		return resp.Body, nil
+	}
+	return f(0)
+}
+
+// runFFmpegCommand runs ffmpeg with the provided body
+// and the audio player's configuration
+func (ap *AudioPlayer) runFFmpegCommand(body io.ReadCloser) (io.ReadCloser, error) {
+	run := exec.Command(
+		"ffmpeg",
+		"-i", "-", "-f", "s16le", "-ar",
+		strconv.Itoa(ap.config.FrameRate), "-ac",
+		strconv.Itoa(ap.config.Channels), "pipe:1",
+	)
+	run.Stdin = body
+	stdout, err := run.StdoutPipe()
+	if err != nil {
+		ap.funcs.onFailure(ap.session, ap.guildID)
+		return nil, err
+	}
+	err = run.Start()
+	if err != nil {
+		ap.funcs.onFailure(ap.session, ap.guildID)
+		return nil, err
+	}
+	return stdout, nil
 
 }
 
@@ -192,20 +242,22 @@ func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 // audioplayer finishes. If any functions were added to the
 // deferFuncBuffer, all those are used, if none were added, the
 // defaultFunc, added in the constructor, is returned.
-func (ap *AudioPlayer) getDefferFunc() func(*discordgo.Session, string) {
+func (f *DeferFunctions) getDeferFunc() func(*discordgo.Session, string) {
 	return func(s *discordgo.Session, guildID string) {
-		if len(ap.deferFuncBuffer) == 0 {
-			ap.defaultDeferFunc(s, guildID)
-			return
-		}
-		for i := 0; i < len(ap.deferFuncBuffer); i++ {
+		callDefault := true
+		for i := 0; i < len(f.onSuccessBuffer); i++ {
 			select {
-			case f, ok := <-ap.deferFuncBuffer:
+			case f, ok := <-f.onSuccessBuffer:
 				if !ok {
 					return
 				}
 				f(s, guildID)
+				callDefault = false
 			}
+		}
+		if callDefault {
+			f.defaultOnSuccess(s, guildID)
+			return
 		}
 	}
 }
