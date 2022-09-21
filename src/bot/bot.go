@@ -147,23 +147,32 @@ func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
 		return
 	}
 	for _, queue := range queues {
-		bot.service.RemoveQueueOption(queue, model.Paused)
-		bot.service.AddQueueOption(queue, model.Inactive)
-
-		err := bot.datastore.UpdateQueue(queue)
+		err := bot.datastore.RemoveQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.Paused,
+		)
+		if err == nil {
+			err = bot.datastore.PersistQueueOptions(
+				queue.ClientID,
+				queue.GuildID,
+				model.InactiveOption(),
+			)
+		}
 		if err == nil {
 			err = bot.updateQueue(session, queue.GuildID)
 		}
 		if err != nil {
-			if err := bot.datastore.RemoveQueue(
+			err = bot.datastore.RemoveQueue(
 				queue.ClientID,
 				queue.GuildID,
-			); err != nil {
+			)
+			if err != nil {
 				bot.Errorf(
-					"Error when checking if all queues exist: %v", err,
+					"Error when cleaning up queues : %v", err,
 				)
-
 			}
+
 		}
 	}
 }

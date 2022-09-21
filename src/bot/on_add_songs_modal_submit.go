@@ -59,7 +59,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	if err := bot.datastore.PersistSongs(
 		s.State.User.ID,
 		i.GuildID,
-		songs,
+		songs...,
 	); err != nil {
 		bot.Errorf("Error when submitting add songs modal: %v", err)
 		return

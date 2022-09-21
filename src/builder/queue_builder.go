@@ -17,12 +17,11 @@ func (builder *Builder) NewQueue(clientID string, guildID string, messageID stri
 	queue.ClientID = clientID
 	queue.MessageID = messageID
 	queue.ChannelID = channelID
-	queue.Size = 0           // number of songs in the queue
-	queue.Offset = 0         // index of songs displayed at first position
-	queue.HeadSong = nil     // currently playing song
-	queue.PreviousSong = nil // previously played song
-	queue.Limit = 10         // Number of songs per page
-	queue.Options = make([]model.QueueOption, 0)
+	queue.Size = 0
+	queue.Offset = 0
+	queue.HeadSong = nil
+	queue.InactiveSize = 0
+	queue.Limit = 10
 	queue.Songs = make([]*model.Song, 0)
 	return queue
 }
@@ -119,8 +118,8 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 			Components: []discordgo.MessageComponent{
 				builder.newButton(builder.Config.Components.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
 				builder.newButton(builder.Config.Components.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
-				builder.newButton(builder.Config.Components.Previous, discordgo.SecondaryButton, queue.PreviousSong == nil && !(queue.Size > 1 && builder.QueueHasOption(queue, model.Loop)) || builder.QueueHasOption(queue, model.Paused)),
-				builder.newButton(builder.Config.Components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
+				builder.newButton(builder.Config.Components.Previous, discordgo.SecondaryButton, queue.InactiveSize == 0 && !(queue.Size > 1 && builder.QueueHasOption(queue, model.Loop)) || builder.QueueHasOption(queue, model.Paused)),
+				builder.newButton(builder.Config.Components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused) || (queue.Size == 1 && builder.QueueHasOption(queue, model.Loop))),
 			},
 		},
 		discordgo.ActionsRow{
@@ -136,9 +135,12 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 
 // QueueHasOption checks if the provided queue
 // has the provided option set
-func (builder *Builder) QueueHasOption(queue *model.Queue, option model.QueueOption) bool {
+func (builder *Builder) QueueHasOption(queue *model.Queue, option model.QueueOptionName) bool {
+	if queue == nil || queue.Options == nil {
+		return false
+	}
 	for _, o := range queue.Options {
-		if option == o {
+		if option == o.Name {
 			return true
 		}
 	}

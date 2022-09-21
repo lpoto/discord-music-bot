@@ -74,7 +74,13 @@ func (datastore *Datastore) Init(ctx context.Context) error {
 	if err := datastore.createQueueTable(); err != nil {
 		return err
 	}
+	if err := datastore.createQueueOptionTable(); err != nil {
+		return err
+	}
 	if err := datastore.createSongTable(); err != nil {
+		return err
+	}
+	if err := datastore.createInactiveSongTable(); err != nil {
 		return err
 	}
 

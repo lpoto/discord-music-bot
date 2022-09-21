@@ -13,7 +13,7 @@ import (
 // in a single query.
 // The saved songs belong to the queue identified by the provided
 // clientID and guildID
-func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs []*model.Song) error {
+func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs ...*model.Song) error {
 	if len(songs) < 1 {
 		return nil
 	}
@@ -74,6 +74,54 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 		"Latency",
 		time.Since(t),
 	).Tracef("[%d]Done : %d songs persisted", i, len(songs))
+	return nil
+}
+
+// PeristSongToFront saves the provided song to the database.
+// The song's position is set to 1 less than the minimum position of the
+// queue identified with the provided clientID and guildID
+func (datastore *Datastore) PeristSongToFront(clientID string, guildID string, song *model.Song) error {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Persist song to front", i)
+
+	minPosition, err := datastore.getMaxSongPosition(
+		clientID,
+		guildID,
+	)
+	if err != nil {
+		datastore.Errorf("[%d]Error: %v", err)
+		return err
+	}
+
+	if _, err := datastore.Exec(
+		`
+    INSERT INTO "song" (
+        position, name, short_name, url, duration_seconds,
+        duration_string, color, queue_client_id, queue_guild_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `,
+		minPosition-1,
+		datastore.escapeSingleQuotes(song.Name),
+		datastore.escapeSingleQuotes(song.ShortName),
+		datastore.escapeSingleQuotes(song.Url),
+		song.DurationSeconds,
+		datastore.escapeSingleQuotes(song.DurationString),
+		song.Color,
+		clientID,
+		guildID,
+	); err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+
+	datastore.WithField(
+		"Latency",
+		time.Since(t),
+	).Tracef("[%d]Done : song persisted to front", i)
 	return nil
 }
 
@@ -402,7 +450,7 @@ func (datastore *Datastore) PushLastSongToFront(clientID string, guildID string)
 // queue, identified by the provided clientID and guildID.
 // If force is true, the songs are deleted, else they are moved
 // to the 'inactive_song' table.
-func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []uint) error {
+func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids ...uint) error {
 	i, t := datastore.getIdx(), time.Now()
 
 	datastore.WithFields(log.Fields{

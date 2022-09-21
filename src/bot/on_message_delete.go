@@ -27,36 +27,32 @@ func (bot *Bot) onBulkMessageDelete(s *discordgo.Session, m *discordgo.MessageDe
 }
 
 func (bot *Bot) deleteQueue(clientID string, guildID string, messageIDs []string) {
-	if queue, err := bot.datastore.FindQueue(
+	queue, err := bot.datastore.FindQueue(
 		clientID,
 		guildID,
-	); err != nil {
-		bot.Errorf(
-			"Error when finding queue after message delete: %v",
-			err,
-		)
-	} else {
-		ok := false
-		for _, v := range messageIDs {
-			if queue.MessageID == v {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			bot.Trace("The queue message was not deleted")
-			return
-		}
-		bot.Trace("The queue message was deleted, removing the queue")
-		if err := bot.datastore.RemoveQueue(
-			clientID,
-			queue.GuildID,
-		); err != nil {
-			bot.Errorf(
-				"Error when removing queue after message delete: %v",
-				err,
-			)
+	)
+	if err != nil {
+		return
+	}
+	ok := false
+	for _, v := range messageIDs {
+		if queue.MessageID == v {
+			ok = true
+			break
 		}
 	}
-
+	if !ok {
+		bot.Trace("The queue message was not deleted")
+		return
+	}
+	bot.Trace("The queue message was deleted, removing the queue")
+	if err := bot.datastore.RemoveQueue(
+		clientID,
+		queue.GuildID,
+	); err != nil {
+		bot.Errorf(
+			"Error when removing queue after message delete: %v",
+			err,
+		)
+	}
 }

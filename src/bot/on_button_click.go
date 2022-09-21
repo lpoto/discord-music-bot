@@ -96,23 +96,27 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 	time.Sleep(300 * time.Millisecond)
 
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
-
-	bot.service.AddOrRemoveQueueOption(queue, model.Paused)
-
-	if err := bot.datastore.UpdateQueue(queue); err != nil {
-		bot.Errorf("Error on pause button click: %v", err)
-		return
-	}
-	bot.updateQueue(s, i.GuildID)
-
-	// Pause the currently playing song, if any
-	if ap, ok := bot.audioplayers[i.GuildID]; ok {
-		if bot.builder.QueueHasOption(queue, model.Paused) {
-			ap.Pause()
-		} else {
+	if bot.builder.QueueHasOption(queue, model.Paused) {
+		bot.datastore.RemoveQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.Paused,
+		)
+		if ap, ok := bot.audioplayers[i.GuildID]; ok {
 			ap.Unpause()
 		}
+	} else {
+		bot.datastore.PersistQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.PausedOption(),
+		)
+		if ap, ok := bot.audioplayers[i.GuildID]; ok {
+			ap.Pause()
+		}
+
 	}
+	bot.updateQueue(s, i.GuildID)
 }
 
 // loopButtonClick adds or removes the queue's Loop option, updates it
@@ -130,10 +134,19 @@ func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 	time.Sleep(300 * time.Millisecond)
 
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
-	bot.service.AddOrRemoveQueueOption(queue, model.Loop)
-	if err := bot.datastore.UpdateQueue(queue); err != nil {
-		bot.Errorf("Error on loop button click: %v", err)
-		return
+	if bot.builder.QueueHasOption(queue, model.Loop) {
+		bot.datastore.RemoveQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.Loop,
+		)
+	} else {
+		bot.datastore.PersistQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.LoopOption(),
+		)
+
 	}
 	bot.updateQueue(s, i.GuildID)
 }
@@ -213,7 +226,7 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 		bot.Errorf("Error on previous button click: %v", err)
 		return
 	}
-	if queue.PreviousSong == nil && !(queue.Size > 1 && bot.builder.QueueHasOption(queue, model.Loop)) {
+	if queue.InactiveSize == 0 && !(queue.Size > 1 && bot.builder.QueueHasOption(queue, model.Loop)) {
 		return
 	}
 	// NOTE: when audioplayer finishes, only update the queue, but don't
@@ -231,15 +244,14 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 // it and then updates the queue message
 func (bot *Bot) joinButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
-	queue, err := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
-	if err != nil {
+
+	if err := bot.datastore.RemoveQueueOptions(
+		s.State.User.ID,
+		i.GuildID,
+		model.Inactive,
+	); err != nil {
 		bot.Errorf("Error on join button click: %v", err)
 		return
 	}
-	bot.service.RemoveQueueOption(queue, model.Inactive)
-	if err := bot.datastore.UpdateQueue(queue); err == nil {
-		bot.updateQueue(s, i.GuildID)
-	} else {
-		bot.Errorf("Error on join button click: %v", err)
-	}
+	bot.updateQueue(s, i.GuildID)
 }

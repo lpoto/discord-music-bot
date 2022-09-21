@@ -44,7 +44,9 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 		return
 	}
 
-	// NOTE: always play the queue's headSong
+	// NOTE: always play the queue's headSong,
+	// as it is the song with the minimum position
+	// in the queue
 	song := queue.HeadSong
 
 	bot.WithField(
@@ -89,16 +91,29 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 				err,
 			)
 		}
-	} else if err := bot.datastore.RemoveHeadSong(
-		// NOTE: the finished song should be removed
-		// from the queue
-		s.State.User.ID,
-		guildID,
-	); err != nil {
-		bot.Errorf(
-			"Error when removing song during play: %v", err,
-		)
+	} else {
+		// NOTE: persist queue's headSong to inactive song table
+		if err := bot.datastore.PersistInactiveSongs(
+			s.State.User.ID,
+			guildID,
+			queue.HeadSong,
+		); err != nil {
+			bot.Errorf(
+				"Error when removing song during play: %v", err,
+			)
+		}
+		if err := bot.datastore.RemoveHeadSong(
+			// NOTE: the finished song should be removed
+			// from the queue
+			s.State.User.ID,
+			guildID,
+		); err != nil {
+			bot.Errorf(
+				"Error when removing song during play: %v", err,
+			)
+		}
 	}
+
 	bot.updateQueue(s, guildID)
 }
 
