@@ -167,7 +167,7 @@ func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 		}
 	}()
 
-	time.Sleep(350 * time.Millisecond)
+	time.Sleep(750 * time.Millisecond)
 
 	if ap, ok := bot.audioplayers[i.GuildID]; ok && !ap.IsPaused() {
 		ap.Stop()
@@ -187,13 +187,18 @@ func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.Interaction
 			delete(m, "REPLAY")
 		}
 	}()
-	time.Sleep(350 * time.Millisecond)
 
 	ap, ok := bot.audioplayers[i.GuildID]
 	if ok && ap.IsPaused() {
 		return
 	}
+	done := make(chan struct{}, 2)
 	f := func(s *discordgo.Session, guildID string) {
+		select {
+		case done <- struct{}{}:
+			time.Sleep(800 * time.Millisecond)
+		default:
+		}
 		bot.updateQueue(s, guildID)
 	}
 	if ap == nil {
@@ -201,7 +206,17 @@ func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.Interaction
 	} else {
 		ap.AddDeferFunc(f)
 		ap.Stop()
-
+	}
+	t := time.Now()
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			if time.Since(t) >= time.Second {
+				return
+			}
+		}
 	}
 }
 
@@ -218,7 +233,6 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 			delete(m, "PREVIOUS")
 		}
 	}()
-	time.Sleep(350 * time.Millisecond)
 
 	ap, ok := bot.audioplayers[i.GuildID]
 	if ok && ap.IsPaused() {
@@ -232,6 +246,7 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	if queue.InactiveSize == 0 && !(queue.Size > 1 && bot.builder.QueueHasOption(queue, model.Loop)) {
 		return
 	}
+	done := make(chan struct{}, 2)
 	// NOTE: when audioplayer finishes, add previous song as the headSong
 	// and update the queue.
 	// If loop is enabled, the previous song is last song in the queue,
@@ -255,6 +270,11 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 				bot.Errorf("Error on previous song button click: %v", err)
 			}
 		}
+		select {
+		case done <- struct{}{}:
+			time.Sleep(800 * time.Millisecond)
+		default:
+		}
 		bot.updateQueue(s, guildID)
 	}
 	if ap == nil {
@@ -262,6 +282,17 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	} else {
 		ap.AddDeferFunc(f)
 		ap.Stop()
+	}
+	t := time.Now()
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			if time.Since(t) >= time.Second {
+				return
+			}
+		}
 	}
 }
 
