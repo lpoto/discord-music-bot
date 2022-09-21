@@ -92,40 +92,56 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	options.Bitrate = 96
 	options.Application = "lowdelay"
 
-	ap.encodingSession, err = dca.EncodeFile(url, options)
-	if err != nil {
-		ap.errorDeferFunc(ap.session, ap.guildID)
-		return err
-	}
-	defer func() {
-		ap.encodingSession.Cleanup()
-		ap.encodingSession = nil
-	}()
+	var startStreaming func(int) error
 
-	streamingDone := make(chan error)
-	ap.streamingSession = dca.NewStream(
-		ap.encodingSession,
-		voiceConnection,
-		streamingDone,
-	)
-	defer func() { ap.streamingSession = nil }()
-
-	done := ctx.Done()
-
-	t := time.Now()
-	for {
-		select {
-		case <-done:
-		case err := <-streamingDone:
-			if err != io.EOF && err != io.ErrUnexpectedEOF ||
-				time.Since(t) <= time.Second {
-				ap.errorDeferFunc(ap.session, ap.guildID)
-			} else {
-				ap.getDefferFunc()(ap.session, ap.guildID)
-			}
+	// NOTE: try to stream 3 times...
+	// if unsuccessful, call the errorDeferFunc and return
+	startStreaming = func(retries int) error {
+		if retries > 2 {
+			ap.errorDeferFunc(ap.session, ap.guildID)
 			return nil
 		}
+
+		ap.encodingSession, err = dca.EncodeFile(url, options)
+		if err != nil {
+			ap.errorDeferFunc(ap.session, ap.guildID)
+			return err
+		}
+		defer func() {
+			if ap.encodingSession != nil {
+				ap.encodingSession.Cleanup()
+				ap.encodingSession = nil
+			}
+		}()
+
+		streamingDone := make(chan error)
+		ap.streamingSession = dca.NewStream(
+			ap.encodingSession,
+			voiceConnection,
+			streamingDone,
+		)
+		defer func() { ap.streamingSession = nil }()
+
+		done := ctx.Done()
+
+		t := time.Now()
+		for {
+			select {
+			case <-done:
+			case err := <-streamingDone:
+				if err != io.EOF && err != io.ErrUnexpectedEOF {
+					ap.errorDeferFunc(ap.session, ap.guildID)
+				} else if time.Since(t) <= 2*time.Second {
+					return startStreaming(retries + 1)
+				} else {
+					ap.getDefferFunc()(ap.session, ap.guildID)
+				}
+				return nil
+			default:
+			}
+		}
 	}
+	return startStreaming(0)
 }
 
 // Pause pauses the currently streaming session if any
@@ -150,6 +166,7 @@ func (ap *AudioPlayer) Unpause() {
 func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
 	select {
 	case ap.deferFuncBuffer <- f:
+		time.Sleep(100 * time.Millisecond)
 	default:
 	}
 }

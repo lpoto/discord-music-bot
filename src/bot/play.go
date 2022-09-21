@@ -120,7 +120,6 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 // audioplayerDefaultErrorDefer is the default function called
 // when the audioplayer finishes with error.
 func (bot *Bot) audioplayerDefaultErrorDefer(s *discordgo.Session, guildID string) {
-
 	// NOTE: if error occured when playing the head song,
 	// it should be removed
 
