@@ -281,7 +281,7 @@ func (datastore *Datastore) GetQueueData(queue *model.Queue) (*model.Queue, erro
 func (datastore *Datastore) createQueueTable() error {
 	i, t := datastore.getIdx(), time.Now()
 
-	datastore.WithField("TableName", "queue").Debugf(
+	datastore.WithField("TableName", "queue").Tracef(
 		"[%d]Start: Create psql table (if not exists)",
 		i,
 	)

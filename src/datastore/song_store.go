@@ -485,7 +485,7 @@ func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids ...
 func (datastore *Datastore) createSongTable() error {
 	i, t := datastore.getIdx(), time.Now()
 
-	datastore.WithField("TableName", "song").Debugf(
+	datastore.WithField("TableName", "song").Tracef(
 		"[%d]Start: Create psql table (if not exists)", i,
 	)
 

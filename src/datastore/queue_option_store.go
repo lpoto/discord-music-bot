@@ -149,7 +149,7 @@ func (datastore *Datastore) GetOptionsForQueue(clientID string, guildID string) 
 func (datastore *Datastore) createQueueOptionTable() error {
 	i, t := datastore.getIdx(), time.Now()
 
-	datastore.WithField("TableName", "queue_option").Debugf(
+	datastore.WithField("TableName", "queue_option").Tracef(
 		"[%d]Start: Create psql table (if not exists)",
 		i,
 	)
