@@ -146,7 +146,6 @@ func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 			queue.GuildID,
 			model.LoopOption(),
 		)
-
 	}
 	bot.updateQueue(s, i.GuildID)
 }
@@ -191,15 +190,19 @@ func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.Interaction
 	time.Sleep(500 * time.Millisecond)
 
 	ap, ok := bot.audioplayers[i.GuildID]
-	if !ok || ap.IsPaused() {
+	if ok && ap.IsPaused() {
 		return
 	}
-	// NOTE: when audioplayer finishes, only update the queue, but don't
-	// remove any songs
-	ap.AddDeferFunc(func(s *discordgo.Session, guildID string) {
+	f := func(s *discordgo.Session, guildID string) {
 		bot.updateQueue(s, guildID)
-	})
-	ap.Stop()
+	}
+	if ap == nil {
+		f(s, i.GuildID)
+	} else {
+		ap.AddDeferFunc(f)
+		ap.Stop()
+
+	}
 }
 
 // previousButtonClick adds a different defer func to the audioplayer, that adds
@@ -218,7 +221,7 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	time.Sleep(500 * time.Millisecond)
 
 	ap, ok := bot.audioplayers[i.GuildID]
-	if !ok || ap.IsPaused() {
+	if ok && ap.IsPaused() {
 		return
 	}
 	queue, err := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
@@ -229,15 +232,37 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	if queue.InactiveSize == 0 && !(queue.Size > 1 && bot.builder.QueueHasOption(queue, model.Loop)) {
 		return
 	}
-	// NOTE: when audioplayer finishes, only update the queue, but don't
-	// remove any songs
-	ap.AddDeferFunc(func(s *discordgo.Session, guildID string) {
+	// NOTE: when audioplayer finishes, add previous song as the headSong
+	// and update the queue.
+	// If loop is enabled, the previous song is last song in the queue,
+	// else it is the last removed song
+	f := func(s *discordgo.Session, guildID string) {
+
 		if bot.builder.QueueHasOption(queue, model.Loop) {
 			bot.datastore.PushLastSongToFront(s.State.User.ID, guildID)
+		} else {
+			song, err := bot.datastore.PopLatestInactiveSong(
+				s.State.User.ID, guildID,
+			)
+			if err != nil {
+				bot.Errorf("Error on previous song button click: %v", err)
+				bot.updateQueue(s, guildID)
+				return
+			}
+			if err := bot.datastore.PersistSongToFront(
+				s.State.User.ID, guildID, song,
+			); err != nil {
+				bot.Errorf("Error on previous song button click: %v", err)
+			}
 		}
 		bot.updateQueue(s, guildID)
-	})
-	ap.Stop()
+	}
+	if ap == nil {
+		f(s, i.GuildID)
+	} else {
+		ap.AddDeferFunc(f)
+		ap.Stop()
+	}
 }
 
 // joinButtonClick removes the inactive option from the queue, updates

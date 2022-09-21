@@ -49,6 +49,9 @@ func (ap *AudioPlayer) IsPlaying() bool {
 // IsPaused returns true if the audioplayer is currenthly
 // paused, false otherwise
 func (ap *AudioPlayer) IsPaused() bool {
+	if ap.streamingSession == nil {
+		return false
+	}
 	return ap.streamingSession.Paused()
 }
 

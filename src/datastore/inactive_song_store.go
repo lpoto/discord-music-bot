@@ -80,9 +80,14 @@ func (datastore *Datastore) PopLatestInactiveSong(clientID string, guildID strin
 		`
         DELETE FROM "inactive_song"
         WHERE "inactive_song".queue_client_id = $1 AND
-            "inactive_song".queue_guild_id = $2
-        ORDER BY id DESC
-        LIMIT 1
+            "inactive_song".queue_guild_id = $2 AND
+            "inactive_song".id = ANY(
+                array(
+                    SELECT id FROM "inactive_song"
+                    ORDER BY id DESC
+                    LIMIT 1
+                )
+            )
         RETURNING *
         `,
 		clientID,

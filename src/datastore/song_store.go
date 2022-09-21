@@ -77,10 +77,10 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 	return nil
 }
 
-// PeristSongToFront saves the provided song to the database.
+// PersistSongToFront saves the provided song to the database.
 // The song's position is set to 1 less than the minimum position of the
 // queue identified with the provided clientID and guildID
-func (datastore *Datastore) PeristSongToFront(clientID string, guildID string, song *model.Song) error {
+func (datastore *Datastore) PersistSongToFront(clientID string, guildID string, song *model.Song) error {
 	i, t := datastore.getIdx(), time.Now()
 
 	datastore.WithFields(log.Fields{
@@ -88,7 +88,7 @@ func (datastore *Datastore) PeristSongToFront(clientID string, guildID string, s
 		"GuildID":  guildID,
 	}).Tracef("[%d]Start: Persist song to front", i)
 
-	minPosition, err := datastore.getMaxSongPosition(
+	minPosition, err := datastore.getMinSongPosition(
 		clientID,
 		guildID,
 	)
