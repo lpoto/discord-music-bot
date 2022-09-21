@@ -29,14 +29,19 @@ func (builder *Builder) NewSong(info *model.SongInfo) *model.Song {
 func (builder *Builder) WrapName(name string) string {
 	name = strings.TrimSpace(name)
 	spacer := "\n> ㅤ"
+	// Allow only texts of max length 100
+	// ... Youtube doesn't allow titles longer than 100 anyway
 	if len(name) > 100 {
 		name = name[100:]
 	}
+	// Wrap the text to lines of max length = 30
 	maxLength := 30
 	fields := strings.Fields(name)
 
 	fields2 := make([]string, 0)
 
+	// Split the text to multiple lines
+	// where words are not split
 	s := ""
 	for i := 0; i <= len(fields); i++ {
 		if i < len(fields) && (i == 0 || len(s+fields[i])+1 <= maxLength) {
@@ -62,7 +67,14 @@ func (builder *Builder) WrapName(name string) string {
 
 // shortenYoutubeSongName returns a substring of the provided
 // song name, so that all songs in the queue appear of equal lengths.
+// NOTE: Discord uses a font where the characters differ in lengths,
+// but the names should still appear of equal lengths.
 func (builder *Builder) shortenYoutubeSongName(name string) string {
+	// TODO: currently this only shortens the name to 30 characters.
+	// It should rather determine which characters are wider,...
+	// and based on that define the new length of the name.
+	// NOTE: Maybe canvas may be used, so the lengths are easily
+	// determine based on the pixel width
 	if len(name) <= 30 {
 		return name
 	}
@@ -75,7 +87,9 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	// replace [video], [film], [audio], [hd], (video), ... (text), (official), ...
 	// official video, [official video], (official video), ... official spot, ...
 	// lyrics, texts, ...
-	r0 := regexp.MustCompile(
+	// TODO: should be implemented with additional patterns
+	// that should be removed
+	r := regexp.MustCompile(
 		`(?i)(?m)` +
 			`((-\s*)?((off?ici([^(spot)]|[^(video)])*\s*` +
 			`(spot|video))|(h(d|q))|(\d+p)|(\dk))$)` +
@@ -86,16 +100,27 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 			`(((\+)?\s*(\()?\s*(lyric(s)?|text|tekst|(v?\s*)?(ž|z)ivo))` +
 			`\s*(\))?|(#(\w+)?\s*)+$)`,
 	)
-	r1 := regexp.MustCompile(`((\/\/)(\/+)?)|((\|\|)(\|+)?)`)
-	r2 := regexp.MustCompile(`\s*-\s*`)
+	name = string(r.ReplaceAll([]byte(name), []byte{}))
 
-	name = string(r0.ReplaceAll([]byte(name), []byte{}))
-	name = string(r1.ReplaceAll([]byte(name), []byte("-")))
-	name = string(r2.ReplaceAll([]byte(name), []byte(" - ")))
+	// Replace slashes and pipe lines with -
+	r = regexp.MustCompile(`((\/\/)(\/+)?)|((\|\|)(\|+)?)`)
+	name = string(r.ReplaceAll([]byte(name), []byte("-")))
+
+	// Trim white space around - to a single space on each side
+	r = regexp.MustCompile(`\s*-\s*`)
+	name = string(r.ReplaceAll([]byte(name), []byte(" - ")))
+
+	// Replace all ` quotes with ' so there are no code blocks
 	name = strings.ReplaceAll(name, "`", "'")
+
+	// Escape * and _ so the songs are not bold, italic or crossed
+	name = strings.ReplaceAll(name, "_", `\_`)
+	name = strings.ReplaceAll(name, "*", `\*`)
 	name = builder.decodeJsonEncoding(name)
 
+	// Convert the name to 'Title Format String'
 	name = builder.toTitleString(name)
+
 	return builder.decodeJsonEncoding(name)
 }
 
@@ -108,10 +133,12 @@ func (builder *Builder) secondsToTimeString(seconds int) string {
 	minutes := int(seconds / 60)
 	seconds = seconds % 60
 	if hours > 0 {
-		s += fmt.Sprintf("%.2d:", hours)
+		s += fmt.Sprintf("%d:", hours)
 	}
-	if minutes > 0 || hours > 0 {
+	if hours > 0 {
 		s += fmt.Sprintf("%.2d:", minutes)
+	} else {
+		s += fmt.Sprintf("%d:", minutes)
 	}
 	return s + fmt.Sprintf("%.2d", seconds)
 }
@@ -121,6 +148,10 @@ func (builder *Builder) decodeJsonEncoding(s string) string {
 	return name
 }
 
+// toTitleString converts the provided string so that
+// each word is lowercase but starts with an uppercase character,
+// unles the word is shorter than 3 characters, then it is
+// only lowercase
 func (builder *Builder) toTitleString(s string) string {
 	split := strings.Fields(s)
 	for i, f := range split {
