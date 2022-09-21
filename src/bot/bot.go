@@ -16,6 +16,7 @@ import (
 type Bot struct {
 	*log.Logger
 	ctx                           context.Context
+	ready                         bool
 	service                       *service.Service
 	builder                       *builder.Builder
 	datastore                     *datastore.Datastore
@@ -36,6 +37,7 @@ func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *Applicat
 	bot := &Bot{
 		ctx:                           ctx,
 		Logger:                        l,
+		ready:                         false,
 		service:                       service.NewService(),
 		builder:                       builder.NewBuilder(builderConfig),
 		datastore:                     datastore.NewDatastore(datastoreConfig),
