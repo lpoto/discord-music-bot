@@ -167,7 +167,7 @@ func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 		}
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(350 * time.Millisecond)
 
 	if ap, ok := bot.audioplayers[i.GuildID]; ok && !ap.IsPaused() {
 		ap.Stop()
@@ -187,7 +187,7 @@ func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.Interaction
 			delete(m, "REPLAY")
 		}
 	}()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(350 * time.Millisecond)
 
 	ap, ok := bot.audioplayers[i.GuildID]
 	if ok && ap.IsPaused() {
@@ -218,7 +218,7 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 			delete(m, "PREVIOUS")
 		}
 	}()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(350 * time.Millisecond)
 
 	ap, ok := bot.audioplayers[i.GuildID]
 	if ok && ap.IsPaused() {

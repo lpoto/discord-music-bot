@@ -3,6 +3,7 @@ package bot
 import (
 	"discord-music-bot/bot/audioplayer"
 	"discord-music-bot/model"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -13,10 +14,13 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 	if len(channelID) == 0 {
 		return
 	}
-	_, ok := bot.audioplayers[guildID]
-	if ok {
+	if _, ok := bot.audioplayers[guildID]; ok {
 		// NOTE: audio has already been started from
 		// another source, do not continue
+		time.Sleep(300 * time.Millisecond)
+		if _, ok := bot.audioplayers[guildID]; ok {
+			return
+		}
 		return
 	}
 

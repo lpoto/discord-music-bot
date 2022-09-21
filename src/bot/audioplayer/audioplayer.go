@@ -22,6 +22,7 @@ type AudioPlayer struct {
 	defaultDeferFunc func(*discordgo.Session, string)
 	errorDeferFunc   func(*discordgo.Session, string)
 	deferFuncBuffer  chan func(*discordgo.Session, string)
+	stop             bool
 }
 
 // NewAudioPlayer constructs an object that handles playing
@@ -37,6 +38,7 @@ func NewAudioPlayer(session *discordgo.Session, guildID string, defaultDeferFunc
 		defaultDeferFunc: defaultDeferFunc,
 		errorDeferFunc:   errorDeferFunc,
 		deferFuncBuffer:  make(chan func(*discordgo.Session, string), 10),
+		stop:             false,
 	}
 }
 
@@ -57,6 +59,7 @@ func (ap *AudioPlayer) IsPaused() bool {
 
 // Stop stops the current stream, if there is any
 func (ap *AudioPlayer) Stop() {
+	ap.stop = true
 	if ap.encodingSession == nil {
 		return
 	}
@@ -99,6 +102,9 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	startStreaming = func(retries int) error {
 		if retries > 2 {
 			ap.errorDeferFunc(ap.session, ap.guildID)
+			return nil
+		} else if ap.stop {
+			ap.getDefferFunc()(ap.session, ap.guildID)
 			return nil
 		}
 
