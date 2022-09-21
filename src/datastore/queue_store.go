@@ -269,6 +269,9 @@ func (datastore *Datastore) GetQueueData(queue *model.Queue) (*model.Queue, erro
 	return queue, nil
 }
 
+// createSongTable creates the "queue" table
+// with all it's constraints
+// if it does  not already exist
 func (datastore *Datastore) createQueueTable() error {
 	i, t := datastore.getIdx(), time.Now()
 

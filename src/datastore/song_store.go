@@ -247,50 +247,6 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 	}
 }
 
-// GetLastSongInQueue returns the song in the queue with the largest
-// position
-func (datastore *Datastore) GetLastSongInQueue(clientID string, guildID string) (*model.Song, error) {
-	i, t := datastore.getIdx(), time.Now()
-
-	datastore.WithFields(log.Fields{
-		"ClientID": clientID,
-		"GuildID":  guildID,
-	}).Tracef("[%d]Start: Get last song in queue", i)
-
-	maxPosition, err := datastore.getMaxSongPosition(clientID, guildID)
-	if err != nil {
-		datastore.Tracef("[%d]Error: %v", i, err)
-		return nil, err
-	}
-
-	song := &model.Song{}
-	var ignore string
-
-	if err := datastore.QueryRow(
-		`
-        SELECT * FROM "song"
-        WHERE "song".queue_client_id = $1 AND
-            "song".queue_guild_id = $2 AND
-            "song".position = $3;
-        `,
-		clientID,
-		guildID,
-		maxPosition,
-	).Scan(
-		&song.ID, &song.Position,
-		&song.Name, &song.ShortName, &song.Url,
-		&song.DurationSeconds, &song.DurationString,
-		&song.Color, &ignore, &ignore,
-	); err != nil || song.Name == "" {
-		datastore.Tracef("[%d]Error: %v", i, err)
-		return nil, err
-	}
-	datastore.WithField("Latency", time.Since(t)).Tracef(
-		"[%d]Done : Got last song in queue", i,
-	)
-	return song, nil
-}
-
 // GetSongCountForQueue returns the number of songs that belong
 // to the queue identified by the provided clientID and guildID
 func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string) int {
@@ -322,36 +278,39 @@ func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string
 	return count
 }
 
-// RemoveSongs removes songs with ID in the provided ids that belong to the
-// queue, identified by the provided clientID and guildID.
-// If force is true, the songs are deleted, else they are moved
-// to the 'inactive_song' table.
-func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []uint) error {
+// RemoveHeadSong removes song with the minimum position belonging to the
+// queue identified with the provided clientID and guildID
+func (datastore *Datastore) RemoveHeadSong(clientID string, guildID string) error {
 	i, t := datastore.getIdx(), time.Now()
 
 	datastore.WithFields(log.Fields{
 		"ClientID": clientID,
 		"GuildID":  guildID,
-	}).Tracef("[%d]Start: Remove %d songs from queue", i, len(ids))
+	}).Tracef("[%d]Start: Remove head song", i)
 
+	minPosition, err := datastore.getMinSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
 	if _, err := datastore.Exec(
 		`
+
         DELETE FROM "song"
-        WHERE "song".id = ANY($1) AND
-            "song".queue_client_id = $2 AND
-            "song".queue_guild_id = $3
+        WHERE "song".position = $1 AND
+        "song".queue_client_id = $2 AND
+        "song".queue_guild_id = $3;
         `,
-		pq.Array(ids),
+		minPosition,
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Tracef(
-			"[%d]Error: %v", i, err,
-		)
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
 	}
-	datastore.WithField(
-		"Latency", time.Since(t),
-	).Tracef("[%d]Done : Removed songs from queeu", i)
+	datastore.WithField("Latency", time.Since(t)).Tracef(
+		"[%d]Done : Removed head song", i,
+	)
 	return nil
 }
 
@@ -393,42 +352,6 @@ func (datastore *Datastore) PushHeadSongToBack(clientID string, guildID string) 
 	}
 	datastore.WithField("Latency", time.Since(t)).Tracef(
 		"[%d]Done : Pushed head song to back", i,
-	)
-	return nil
-}
-
-// RemoveHeadSong removes song with the minimum position belonging to the
-// queue identified with the provided clientID and guildID
-func (datastore *Datastore) RemoveHeadSong(clientID string, guildID string) error {
-	i, t := datastore.getIdx(), time.Now()
-
-	datastore.WithFields(log.Fields{
-		"ClientID": clientID,
-		"GuildID":  guildID,
-	}).Tracef("[%d]Start: Remove head song", i)
-
-	minPosition, err := datastore.getMinSongPosition(clientID, guildID)
-	if err != nil {
-		datastore.Tracef("[%d]Error: %v", i, err)
-		return err
-	}
-	if _, err := datastore.Exec(
-		`
-
-        DELETE FROM "song"
-        WHERE "song".position = $1 AND
-        "song".queue_client_id = $2 AND
-        "song".queue_guild_id = $3;
-        `,
-		minPosition,
-		clientID,
-		guildID,
-	); err != nil {
-		datastore.Tracef("[%d]Error: %v", i, err)
-		return err
-	}
-	datastore.WithField("Latency", time.Since(t)).Tracef(
-		"[%d]Done : Removed head song", i,
 	)
 	return nil
 }
@@ -475,6 +398,42 @@ func (datastore *Datastore) PushLastSongToFront(clientID string, guildID string)
 	return nil
 }
 
+// RemoveSongs removes songs with ID in the provided ids that belong to the
+// queue, identified by the provided clientID and guildID.
+// If force is true, the songs are deleted, else they are moved
+// to the 'inactive_song' table.
+func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []uint) error {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Remove %d songs from queue", i, len(ids))
+
+	if _, err := datastore.Exec(
+		`
+        DELETE FROM "song"
+        WHERE "song".id = ANY($1) AND
+            "song".queue_client_id = $2 AND
+            "song".queue_guild_id = $3
+        `,
+		pq.Array(ids),
+		clientID,
+		guildID,
+	); err != nil {
+		datastore.Tracef(
+			"[%d]Error: %v", i, err,
+		)
+	}
+	datastore.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[%d]Done : Removed songs from queeu", i)
+	return nil
+}
+
+// createSongTable creates the "song" table
+// with all it's constraints
+// if it does  not already exist
 func (datastore *Datastore) createSongTable() error {
 	i, t := datastore.getIdx(), time.Now()
 
@@ -513,6 +472,8 @@ func (datastore *Datastore) createSongTable() error {
 	return nil
 }
 
+// getMaxSongPosition returns the maximum position of a song
+// that belongs to the queue identified with the provided clientID and guildID
 func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) (int, error) {
 	i, t := datastore.getIdx(), time.Now()
 
@@ -543,6 +504,8 @@ func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) 
 	return position, nil
 }
 
+// getMaxSongPosition returns the minimum position of a song
+// that belongs to the queue identified with the provided clientID and guildID
 func (datastore *Datastore) getMinSongPosition(clientID string, guildID string) (int, error) {
 	i, t := datastore.getIdx(), time.Now()
 
