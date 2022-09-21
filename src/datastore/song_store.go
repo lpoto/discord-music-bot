@@ -13,7 +13,7 @@ import (
 // in a single query.
 // The saved songs belong to the queue identified by the provided
 // clientID and guildID
-func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs []*model.Song) error {
+func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs ...*model.Song) error {
 	if len(songs) < 1 {
 		return nil
 	}
@@ -67,13 +67,61 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 		)
 	}
 	if _, err := datastore.Exec(s); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
 	datastore.WithField(
 		"Latency",
 		time.Since(t),
 	).Tracef("[%d]Done : %d songs persisted", i, len(songs))
+	return nil
+}
+
+// PersistSongToFront saves the provided song to the database.
+// The song's position is set to 1 less than the minimum position of the
+// queue identified with the provided clientID and guildID
+func (datastore *Datastore) PersistSongToFront(clientID string, guildID string, song *model.Song) error {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Persist song to front", i)
+
+	minPosition, err := datastore.getMinSongPosition(
+		clientID,
+		guildID,
+	)
+	if err != nil {
+		datastore.Errorf("[%d]Error: %v", i, err)
+		return err
+	}
+
+	if _, err := datastore.Exec(
+		`
+    INSERT INTO "song" (
+        position, name, short_name, url, duration_seconds,
+        duration_string, color, queue_client_id, queue_guild_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `,
+		minPosition-1,
+		datastore.escapeSingleQuotes(song.Name),
+		datastore.escapeSingleQuotes(song.ShortName),
+		datastore.escapeSingleQuotes(song.Url),
+		song.DurationSeconds,
+		datastore.escapeSingleQuotes(song.DurationString),
+		song.Color,
+		clientID,
+		guildID,
+	); err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+
+	datastore.WithField(
+		"Latency",
+		time.Since(t),
+	).Tracef("[%d]Done : song persisted to front", i)
 	return nil
 }
 
@@ -133,7 +181,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
     WHERE s.id = s2.id;
     `
 	if _, err := datastore.Exec(s); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
 	datastore.WithField(
@@ -168,7 +216,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 		offset,
 		limit,
 	); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return nil, err
 	} else {
 		songs := make([]*model.Song, 0)
@@ -181,7 +229,7 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 				&song.DurationSeconds, &song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
-				datastore.Errorf(
+				datastore.Tracef(
 					"[%d]Error: %v", i, err,
 				)
 				return nil, err
@@ -219,7 +267,7 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Errorf("[%d]Error: %v", i, err)
+		datastore.Tracef("[%d]Error: %v", i, err)
 		return nil, err
 	} else {
 		songs := make([]*model.Song, 0)
@@ -232,7 +280,7 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 				&song.DurationSeconds, &song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
-				datastore.Errorf(
+				datastore.Tracef(
 					"[%d]Error: %v", i, err,
 				)
 				return nil, err
@@ -267,7 +315,7 @@ func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string
 		clientID,
 		guildID,
 	).Scan(&count); err != nil {
-		datastore.Errorf(
+		datastore.Tracef(
 			"[%d]Error: %v", i, err,
 		)
 		count = 0
@@ -278,11 +326,131 @@ func (datastore *Datastore) GetSongCountForQueue(clientID string, guildID string
 	return count
 }
 
+// RemoveHeadSong removes song with the minimum position belonging to the
+// queue identified with the provided clientID and guildID
+func (datastore *Datastore) RemoveHeadSong(clientID string, guildID string) error {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Remove head song", i)
+
+	minPosition, err := datastore.getMinSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	if _, err := datastore.Exec(
+		`
+
+        DELETE FROM "song"
+        WHERE "song".position = $1 AND
+        "song".queue_client_id = $2 AND
+        "song".queue_guild_id = $3;
+        `,
+		minPosition,
+		clientID,
+		guildID,
+	); err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	datastore.WithField("Latency", time.Since(t)).Tracef(
+		"[%d]Done : Removed head song", i,
+	)
+	return nil
+}
+
+// PushHeadSongToBack places the song with the min song position to the back
+// of the queue, by setting it's position 1 more than the song with max position
+func (datastore *Datastore) PushHeadSongToBack(clientID string, guildID string) error {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Push head song to back", i)
+
+	minPosition, err := datastore.getMinSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	maxPosition, err := datastore.getMaxSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	if _, err := datastore.Exec(
+		`
+        UPDATE "song" SET
+        position = $1
+        WHERE "song".position = $2 AND
+        "song".queue_client_id = $3 AND
+        "song".queue_guild_id = $4;
+        `,
+		maxPosition+1,
+		minPosition,
+		clientID,
+		guildID,
+	); err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	datastore.WithField("Latency", time.Since(t)).Tracef(
+		"[%d]Done : Pushed head song to back", i,
+	)
+	return nil
+}
+
+// PushLastSongToFront places the song with the max song position to the front
+// of the queue, by setting it's position 1 less than the song with min position
+func (datastore *Datastore) PushLastSongToFront(clientID string, guildID string) error {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Push last song to front", i)
+
+	minPosition, err := datastore.getMinSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	maxPosition, err := datastore.getMaxSongPosition(clientID, guildID)
+	if err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	if _, err := datastore.Exec(
+		`
+        UPDATE "song" SET
+        position = $1
+        WHERE "song".position = $2 AND
+        "song".queue_client_id = $3 AND
+        "song".queue_guild_id = $4;
+        `,
+		minPosition-1,
+		maxPosition,
+		clientID,
+		guildID,
+	); err != nil {
+		datastore.Tracef("[%d]Error: %v", i, err)
+		return err
+	}
+	datastore.WithField("Latency", time.Since(t)).Tracef(
+		"[%d]Done : Pushed last song to front", i,
+	)
+	return nil
+}
+
 // RemoveSongs removes songs with ID in the provided ids that belong to the
 // queue, identified by the provided clientID and guildID.
 // If force is true, the songs are deleted, else they are moved
 // to the 'inactive_song' table.
-func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []uint) error {
+func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids ...uint) error {
 	i, t := datastore.getIdx(), time.Now()
 
 	datastore.WithFields(log.Fields{
@@ -301,7 +469,7 @@ func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []u
 		clientID,
 		guildID,
 	); err != nil {
-		datastore.Errorf(
+		datastore.Tracef(
 			"[%d]Error: %v", i, err,
 		)
 	}
@@ -311,10 +479,13 @@ func (datastore *Datastore) RemoveSongs(clientID string, guildID string, ids []u
 	return nil
 }
 
+// createSongTable creates the "song" table
+// with all it's constraints
+// if it does  not already exist
 func (datastore *Datastore) createSongTable() error {
 	i, t := datastore.getIdx(), time.Now()
 
-	datastore.WithField("TableName", "song").Debugf(
+	datastore.WithField("TableName", "song").Tracef(
 		"[%d]Start: Create psql table (if not exists)", i,
 	)
 
@@ -349,6 +520,8 @@ func (datastore *Datastore) createSongTable() error {
 	return nil
 }
 
+// getMaxSongPosition returns the maximum position of a song
+// that belongs to the queue identified with the provided clientID and guildID
 func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) (int, error) {
 	i, t := datastore.getIdx(), time.Now()
 
@@ -376,5 +549,37 @@ func (datastore *Datastore) getMaxSongPosition(clientID string, guildID string) 
 	datastore.WithField(
 		"Latency", time.Since(t),
 	).Tracef("[%d]Done : Fetched max song position (%d)", i, position)
+	return position, nil
+}
+
+// getMaxSongPosition returns the minimum position of a song
+// that belongs to the queue identified with the provided clientID and guildID
+func (datastore *Datastore) getMinSongPosition(clientID string, guildID string) (int, error) {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[%d]Start: Fetch min song position for queue", i)
+
+	var position int = 0
+	if err := datastore.QueryRow(
+		`
+        SELECT COALESCE(MIN(s.position), 0)
+        FROM "song" s
+        WHERE s.queue_guild_id = $1 AND
+            s.queue_client_id = $2
+    `,
+		guildID,
+		clientID,
+	).Scan(&position); err != nil {
+		datastore.Tracef(
+			"[%d]Error: %v", i, err,
+		)
+		return 0, err
+	}
+	datastore.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[%d]Done : Fetched min song position (%d)", i, position)
 	return position, nil
 }

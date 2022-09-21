@@ -23,6 +23,11 @@ MusicBot:
       Replay: "↺"
       Loop: "Loop"
       AddSongs: "Add"
+  AudioPlayer:
+    Channels: 2
+    FrameRate: 48000
+    FrameSize: 960
+    Retry: 3
   Youtube:
     LogLevel: TRACE
     MaxParallelQueries: 100

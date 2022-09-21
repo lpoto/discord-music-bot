@@ -11,7 +11,7 @@ import (
 // and which handler should be called.
 func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
-	if i.GuildID == "" || i.Interaction.AppID != s.State.User.ID {
+	if !bot.ready || i.GuildID == "" || i.Interaction.AppID != s.State.User.ID {
 		// NOTE: only listen for interactions in guilds.
 		// Interaction's appID should be equal to the bot' user id, so we
 		// respond only to application commands authored by the bot and

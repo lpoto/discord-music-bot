@@ -35,8 +35,14 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	case bot.builder.Config.Components.Skip:
 		bot.skipButtonClick(s, i)
 		return
+	case bot.builder.Config.Components.Previous:
+		bot.previousButtonClick(s, i)
+		return
 	case bot.builder.Config.Components.Replay:
 		bot.replayButtonClick(s, i)
+		return
+	case bot.builder.Config.Components.Join:
+		bot.joinButtonClick(s, i)
 		return
 	default:
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -58,7 +64,8 @@ func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.Interactio
 		bot.Errorf("Error on forward button click: %v", err)
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i.Interaction)
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	bot.updateQueue(s, i.GuildID)
 }
 
 // backwardButtonClick decrements the queue's offset, updates it
@@ -70,86 +77,237 @@ func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.Interacti
 		bot.Errorf("Error on backward button click: %v", err)
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i.Interaction)
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	bot.updateQueue(s, i.GuildID)
 }
 
 // pauseButtonClick adds or removes the queue's Paused option, updates it
 // and then updates the queue message
 func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
-
-	bot.service.AddOrRemoveQueueOption(queue, model.Paused)
-
-	if err := bot.datastore.UpdateQueue(queue); err != nil {
-		bot.Errorf("Error on pause button click: %v", err)
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	if _, ok := bot.blockedButtons[i.GuildID]["PAUSE"]; ok {
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i.Interaction)
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "PAUSE")
+		}
+	}()
+	time.Sleep(300 * time.Millisecond)
 
-	// Pause the currently playing song, if any
-	if ap, ok := bot.audioplayers[i.GuildID]; ok {
-		if bot.builder.QueueHasOption(queue, model.Paused) {
-			ap.Pause()
-		} else {
+	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	if bot.builder.QueueHasOption(queue, model.Paused) {
+		bot.datastore.RemoveQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.Paused,
+		)
+		if ap, ok := bot.audioplayers[i.GuildID]; ok {
 			ap.Unpause()
 		}
+	} else {
+		bot.datastore.PersistQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.PausedOption(),
+		)
+		if ap, ok := bot.audioplayers[i.GuildID]; ok {
+			ap.Pause()
+		}
+
 	}
+	bot.updateQueue(s, i.GuildID)
 }
 
 // loopButtonClick adds or removes the queue's Loop option, updates it
 // and then updates the queue message
 func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
-	bot.service.AddOrRemoveQueueOption(queue, model.Loop)
-	if err := bot.datastore.UpdateQueue(queue); err != nil {
-		bot.Errorf("Error on loop button click: %v", err)
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	if _, ok := bot.blockedButtons[i.GuildID]["LOOP"]; ok {
 		return
 	}
-	bot.onUpdateQueueFromInteraction(s, i.Interaction)
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "LOOP")
+		}
+	}()
+	time.Sleep(300 * time.Millisecond)
+
+	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	if bot.builder.QueueHasOption(queue, model.Loop) {
+		bot.datastore.RemoveQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.Loop,
+		)
+	} else {
+		bot.datastore.PersistQueueOptions(
+			queue.ClientID,
+			queue.GuildID,
+			model.LoopOption(),
+		)
+	}
+	bot.updateQueue(s, i.GuildID)
 }
 
 // skipButtonClick skips the currently playing song if any
 func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	go func() {
-		// NOTE: if after time the interaction has not been yet
-		// responded to
-		time.Sleep(discordgo.InteractionDeadline - (300 * time.Millisecond))
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseDeferredMessageUpdate,
-		})
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+
+	if _, ok := bot.blockedButtons[i.GuildID]["SKIP"]; ok {
+		// NOTE: someone already pressed the sip button
+		// in the server.
+		// Don't allow multiple people clicking at the same
+		// time, to prevent skipping multiple songs at once
+		return
+	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "SKIP")
+		}
 	}()
 
-	if ap, ok := bot.audioplayers[i.GuildID]; ok {
-		// NOTE: add interaction to the ap, so the
-		// play function may update from interaction and
-		// speed up the process
-		// (updating interactions is not limited as default editing)
-		select {
-		case ap.Interactions <- i.Interaction:
-		}
+	time.Sleep(750 * time.Millisecond)
+
+	if ap, ok := bot.audioplayers[i.GuildID]; ok && !ap.IsPaused() {
 		ap.Stop()
 	}
 }
 
-// skipButtonClick skips the currently playing song if any
+// replayButtonClick adds a different defer func to the audioplayer, that does not remove,
+// the queue's current headSong, and restarts the audioplayer.
 func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	go func() {
-		// NOTE: if after time the interaction has not been yet
-		// responded to
-		time.Sleep(discordgo.InteractionDeadline - (300 * time.Millisecond))
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseDeferredMessageUpdate,
-		})
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+
+	if _, ok := bot.blockedButtons[i.GuildID]["REPLAY"]; ok {
+		return
+	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "REPLAY")
+		}
 	}()
 
-	if ap, ok := bot.audioplayers[i.GuildID]; ok {
-		// NOTE: add interaction to the ap, so the
-		// play function may update from interaction and
-		// speed up the process
-		// (updating interactions is not limited as default editing)
-		select {
-		case ap.Interactions <- i.Interaction:
-		}
-		ap.Replay()
+	ap, ok := bot.audioplayers[i.GuildID]
+	if ok && ap.IsPaused() {
+		return
 	}
+	done := make(chan struct{}, 2)
+	f := func(s *discordgo.Session, guildID string) {
+		select {
+		case done <- struct{}{}:
+			time.Sleep(800 * time.Millisecond)
+		default:
+		}
+		bot.updateQueue(s, guildID)
+	}
+	if ap == nil {
+		f(s, i.GuildID)
+	} else {
+		ap.AddDeferFunc(f)
+		ap.Stop()
+	}
+	t := time.Now()
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			if time.Since(t) >= time.Second {
+				return
+			}
+		}
+	}
+}
+
+// previousButtonClick adds a different defer func to the audioplayer, that adds
+// the queue's previous  song as its head song, and restarts the player.
+func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+
+	if _, ok := bot.blockedButtons[i.GuildID]["PREVIOUS"]; ok {
+		return
+	}
+	defer func() {
+		if m, ok := bot.blockedButtons[i.GuildID]; ok {
+			delete(m, "PREVIOUS")
+		}
+	}()
+
+	ap, ok := bot.audioplayers[i.GuildID]
+	if ok && ap.IsPaused() {
+		return
+	}
+	queue, err := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	if err != nil {
+		bot.Errorf("Error on previous button click: %v", err)
+		return
+	}
+	if queue.InactiveSize == 0 && !(queue.Size > 1 && bot.builder.QueueHasOption(queue, model.Loop)) {
+		return
+	}
+	done := make(chan struct{}, 2)
+	// NOTE: when audioplayer finishes, add previous song as the headSong
+	// and update the queue.
+	// If loop is enabled, the previous song is last song in the queue,
+	// else it is the last removed song
+	f := func(s *discordgo.Session, guildID string) {
+
+		if bot.builder.QueueHasOption(queue, model.Loop) {
+			bot.datastore.PushLastSongToFront(s.State.User.ID, guildID)
+		} else {
+			song, err := bot.datastore.PopLatestInactiveSong(
+				s.State.User.ID, guildID,
+			)
+			if err != nil {
+				bot.Errorf("Error on previous song button click: %v", err)
+				bot.updateQueue(s, guildID)
+				return
+			}
+			if err := bot.datastore.PersistSongToFront(
+				s.State.User.ID, guildID, song,
+			); err != nil {
+				bot.Errorf("Error on previous song button click: %v", err)
+			}
+		}
+		select {
+		case done <- struct{}{}:
+			time.Sleep(800 * time.Millisecond)
+		default:
+		}
+		bot.updateQueue(s, guildID)
+	}
+	if ap == nil {
+		f(s, i.GuildID)
+	} else {
+		ap.AddDeferFunc(f)
+		ap.Stop()
+	}
+	t := time.Now()
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			if time.Since(t) >= time.Second {
+				return
+			}
+		}
+	}
+}
+
+// joinButtonClick removes the inactive option from the queue, updates
+// it and then updates the queue message
+func (bot *Bot) joinButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+
+	if err := bot.datastore.RemoveQueueOptions(
+		s.State.User.ID,
+		i.GuildID,
+		model.Inactive,
+	); err != nil {
+		bot.Errorf("Error on join button click: %v", err)
+		return
+	}
+	bot.updateQueue(s, i.GuildID)
 }

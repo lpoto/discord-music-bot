@@ -4,7 +4,6 @@ import (
 	"discord-music-bot/model"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -43,20 +42,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 
-	added := false
-
-	go func() {
-		// NOTE: if searching for songs is taking too long,
-		// deffer the interaction, so the user does not recieve
-		// "Something went wrong" error
-		time.Sleep(discordgo.InteractionDeadline - (250 * time.Millisecond))
-		if !added {
-			added = true
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseDeferredMessageUpdate,
-			})
-		}
-	}()
+	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
 
 	songInfos := bot.youtubeClient.SearchSongs(queries)
 	if len(songInfos) == 0 {
@@ -73,15 +59,11 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	if err := bot.datastore.PersistSongs(
 		s.State.User.ID,
 		i.GuildID,
-		songs,
+		songs...,
 	); err != nil {
 		bot.Errorf("Error when submitting add songs modal: %v", err)
 		return
 	}
 
-	if !added {
-		bot.onUpdateQueueFromInteraction(s, i.Interaction)
-	} else {
-		bot.onUpdateQueueFromGuildID(s, i.GuildID)
-	}
+	bot.updateQueue(s, i.GuildID)
 }
