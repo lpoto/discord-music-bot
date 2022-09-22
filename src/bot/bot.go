@@ -28,14 +28,13 @@ type Bot struct {
 }
 
 type Configuration struct {
-	LogLevel      log.Level                  `yaml:"LogLevel" validate:"required"`
-	DiscordToken  string                     `yaml:"DiscordToken" validate:"required"`
-	Datastore     *datastore.Configuration   `yaml:"Datastore" validate:"required"`
-	QueueBuilder  *builder.Configuration     `yaml:"QueueBuilder" validate:"required"`
-	SlashCommands *SlashCommandsConfig       `yaml:"SlashCommands" validate:"required"`
-	Modals        *ModalsConfig              `yaml:"Modals"`
-	AudioPlayer   *audioplayer.Configuration `yaml:"AudioPlayer" validate:"required"`
-	Youtube       *youtube.Configuration     `yaml:"Youtube" validate:"required"`
+	LogLevel      log.Level                `yaml:"LogLevel" validate:"required"`
+	DiscordToken  string                   `yaml:"DiscordToken" validate:"required"`
+	Datastore     *datastore.Configuration `yaml:"Datastore" validate:"required"`
+	QueueBuilder  *builder.Configuration   `yaml:"QueueBuilder" validate:"required"`
+	SlashCommands *SlashCommandsConfig     `yaml:"SlashCommands" validate:"required"`
+	Modals        *ModalsConfig            `yaml:"Modals"`
+	Youtube       *youtube.Configuration   `yaml:"Youtube" validate:"required"`
 }
 
 // NewBot constructs an object that connects the logic in the

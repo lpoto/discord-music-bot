@@ -27,11 +27,6 @@ MusicBot:
       Loop: "Loop"
       AddSongs: "Add"
       Join: "Join"
-  AudioPlayer:
-    Channels: 2
-    FrameRate: 48000
-    FrameSize: 960
-    Retry: 3
   Youtube:
     LogLevel: DEBUG
     MaxParallelQueries: 100

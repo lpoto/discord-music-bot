@@ -16,15 +16,7 @@ import (
 	"github.com/kkdai/youtube/v2"
 )
 
-type Configuration struct {
-	Channels  int `yaml:"Channels" validate:"gt=0"`
-	FrameRate int `yaml:"FrameRate" validate:"gt=0"`
-	FrameSize int `yaml:"FrameSize" validate:"gt=0"`
-	Retry     int `yaml:"Retry" validate:"gte=0"`
-}
-
 type AudioPlayer struct {
-	config  *Configuration
 	guildID string
 	session *discordgo.Session
 	client  *youtube.Client
@@ -42,9 +34,8 @@ type DeferFunctions struct {
 
 // NewAudioPlayer constructs an object that handles playing
 // audio in a discord's voice channel
-func NewAudioPlayer(session *discordgo.Session, guildID string, config *Configuration, funcs *DeferFunctions) *AudioPlayer {
+func NewAudioPlayer(session *discordgo.Session, guildID string, funcs *DeferFunctions) *AudioPlayer {
 	return &AudioPlayer{
-		config:  config,
 		client:  &youtube.Client{},
 		guildID: guildID,
 		session: session,
@@ -77,28 +68,20 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 
 	voiceConnection.Speaking(true)
 
-	ctx, cancel := context.WithCancel(ctx)
-
-	pcmChannel := make(chan []int16, 2)
-
-	ap.pcm = NewPCM(ap.config, pcmChannel, voiceConnection)
-	go ap.pcm.Run(ctx)
-
-	defer func() {
-		ap.pcm = nil
-		cancel()
-		voiceConnection.Speaking(false)
-	}()
-
 	var body io.ReadCloser
 	var err error
 	var format *youtube.Format = nil
 	var video *youtube.Video = nil
 	body, err = nil, errors.New("Failed to get stream body")
 
-	for i := 0; i < ap.config.Retry; i++ {
+	for i := 0; i < 3; i++ {
 		video, format, err = ap.getStreamFormat(song.Url)
-		body, err = ap.getStreamBody(video, format)
+		if err == nil {
+			body, err = ap.getStreamBody(video, format)
+		}
+		if err == nil {
+			break
+		}
 	}
 
 	if err != nil {
@@ -107,9 +90,34 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	}
 	defer body.Close()
 
+	// NOTE: determine the frameRate, size and channels
+	// from the format...
+	frameRate, err := strconv.Atoi(format.AudioSampleRate)
+	if err != nil {
+		frameRate = 48000
+	}
+	frameSize := frameRate / 50
+	channels := format.AudioChannels
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	pcmChannel := make(chan []int16, 2)
+
+	ap.pcm = NewPCM(frameRate, frameSize, channels, pcmChannel, voiceConnection)
+	go ap.pcm.Run(ctx)
+
+	defer func() {
+		ap.pcm = nil
+		cancel()
+		voiceConnection.Speaking(false)
+	}()
+
 	var streamAudio func(int) error
 
+	// NOTE: try to stream 3 times in a row on error
+	// in case something goes wrong
 	streamAudio = func(retry int) error {
+
 		if ap.stop {
 			ap.funcs.getDeferFunc()(ap.session, ap.guildID)
 			return nil
@@ -118,7 +126,7 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 			ap.funcs.onFailure(ap.session, ap.guildID)
 			return nil
 		}
-		stdout, err := ap.runFFmpegCommand(body)
+		stdout, err := ap.runFFmpegCommand(body, channels, frameRate)
 		if err != nil {
 			ap.funcs.onFailure(ap.session, ap.guildID)
 			return err
@@ -127,7 +135,7 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		done := ctx.Done()
 
 		// buffer used during loop below
-		audiobuf := make([]int16, ap.config.FrameSize*ap.config.Channels)
+		audiobuf := make([]int16, frameSize*channels)
 	streamLoop:
 		for {
 			select {
@@ -195,6 +203,25 @@ func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 	return 0
 }
 
+// getStreamBody gets the stream url from youtube from
+// the provided url, then calls a http request and fetches the body
+// for the stream
+func (ap *AudioPlayer) getStreamBody(video *youtube.Video, format *youtube.Format) (io.ReadCloser, error) {
+	url, err := ap.client.GetStreamURL(video, format)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		resp.Body.Close()
+		return nil, errors.New(fmt.Sprintf("Response status code: %v", resp.StatusCode))
+	}
+	return resp.Body, nil
+}
+
 // getStreamFormat gets the youtube video belonging to the provided
 // url and returns it's format that best fits the music bot
 func (ap *AudioPlayer) getStreamFormat(url string) (*youtube.Video, *youtube.Format, error) {
@@ -244,36 +271,16 @@ func (ap *AudioPlayer) getStreamFormat(url string) (*youtube.Video, *youtube.For
 		return nil, nil, errors.New("No formats found")
 	}
 	return video, &formats[0], nil
-
-}
-
-// getStreamBody gets the stream url from youtube from
-// the provided url, then calls a http request and fetches the body
-// for the stream
-func (ap *AudioPlayer) getStreamBody(video *youtube.Video, format *youtube.Format) (io.ReadCloser, error) {
-	url, err := ap.client.GetStreamURL(video, format)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != 200 {
-		resp.Body.Close()
-		return nil, errors.New(fmt.Sprintf("Response status code: %v", resp.StatusCode))
-	}
-	return resp.Body, nil
 }
 
 // runFFmpegCommand runs ffmpeg with the provided body
 // and the audio player's configuration
-func (ap *AudioPlayer) runFFmpegCommand(body io.ReadCloser) (io.ReadCloser, error) {
+func (ap *AudioPlayer) runFFmpegCommand(body io.ReadCloser, channels int, frameRate int) (io.ReadCloser, error) {
 	run := exec.Command(
 		"ffmpeg",
 		"-i", "-", "-f", "s16le", "-ar",
-		strconv.Itoa(ap.config.FrameRate), "-ac",
-		strconv.Itoa(ap.config.Channels), "pipe:1",
+		strconv.Itoa(frameRate), "-ac",
+		strconv.Itoa(channels), "pipe:1",
 	)
 	run.Stdin = body
 	stdout, err := run.StdoutPipe()

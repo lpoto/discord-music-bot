@@ -9,19 +9,23 @@ import (
 
 type PCM struct {
 	maxBytes        int
+	frameRate       int
+	frameSize       int
+	channels        int
 	buffer          <-chan []int16
 	voiceConnection *discordgo.VoiceConnection
-	apConfig        *Configuration
 }
 
 // NewPCM constructs a new object that handles
 // sending opus packets to Discord
-func NewPCM(apConfig *Configuration, pcmBuffer <-chan []int16, vc *discordgo.VoiceConnection) *PCM {
+func NewPCM(frameRate int, frameSize int, channel int, pcmBuffer <-chan []int16, vc *discordgo.VoiceConnection) *PCM {
 	return &PCM{
-		maxBytes:        (apConfig.FrameSize * 2) * 2,
+		maxBytes:        (frameSize * 2) * 2,
 		buffer:          pcmBuffer,
 		voiceConnection: vc,
-		apConfig:        apConfig,
+		frameRate:       frameRate,
+		frameSize:       frameSize,
+		channels:        channel,
 	}
 
 }
@@ -31,8 +35,8 @@ func NewPCM(apConfig *Configuration, pcmBuffer <-chan []int16, vc *discordgo.Voi
 // to Discord
 func (pcm *PCM) Run(ctx context.Context) {
 	opusEncoder, err := gopus.NewEncoder(
-		pcm.apConfig.FrameRate,
-		pcm.apConfig.Channels,
+		pcm.frameRate,
+		pcm.channels,
 		gopus.Audio,
 	)
 	if err != nil {
@@ -55,7 +59,7 @@ func (pcm *PCM) Run(ctx context.Context) {
 			// try encoding pcm frame with Opus
 			opus, err := opusEncoder.Encode(
 				recv,
-				pcm.apConfig.FrameSize,
+				pcm.frameSize,
 				pcm.maxBytes,
 			)
 			if err != nil {
