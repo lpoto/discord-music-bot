@@ -14,7 +14,7 @@ import (
 func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Add songs message command")
 	m := bot.getModal(
-		"Add songs",
+		bot.config.Modals.AddSongs.Name,
 		bot.addSongsComponents(),
 	)
 	if err := s.InteractionRespond(
@@ -24,7 +24,7 @@ func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.Interaction
 			Data: &discordgo.InteractionResponseData{
 				Components: m.Components,
 				CustomID:   m.CustomID,
-				Title:      "Add songs",
+				Title:      bot.config.Modals.AddSongs.Name,
 			},
 		},
 	); err != nil {
