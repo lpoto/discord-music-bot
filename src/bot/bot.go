@@ -21,18 +21,28 @@ type Bot struct {
 	builder                       *builder.Builder
 	datastore                     *datastore.Datastore
 	youtubeClient                 *youtube.YoutubeClient
-	applicationCommandsConfig     *ApplicationCommandsConfig
 	audioplayers                  map[string]*audioplayer.AudioPlayer
 	queueUpdateInteractionsBuffer map[string]chan *discordgo.Interaction
 	blockedButtons                map[string]map[string]struct{}
-	audioplayerConfig             *audioplayer.Configuration
+	config                        *Configuration
+}
+
+type Configuration struct {
+	LogLevel      log.Level                  `yaml:"LogLevel" validate:"required"`
+	DiscordToken  string                     `yaml:"DiscordToken" validate:"required"`
+	Datastore     *datastore.Configuration   `yaml:"Datastore" validate:"required"`
+	QueueBuilder  *builder.Configuration     `yaml:"QueueBuilder" validate:"required"`
+	SlashCommands *SlashCommandsConfig       `yaml:"SlashCommands" validate:"required"`
+	Modals        *ModalsConfig              `yaml:"Modals"`
+	AudioPlayer   *audioplayer.Configuration `yaml:"AudioPlayer" validate:"required"`
+	Youtube       *youtube.Configuration     `yaml:"Youtube" validate:"required"`
 }
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *ApplicationCommandsConfig, builderConfig *builder.Configuration, datastoreConfig *datastore.Configuration, youtubeConfig *youtube.Configuration, apConfig *audioplayer.Configuration) *Bot {
+func NewBot(ctx context.Context, config *Configuration) *Bot {
 	l := log.New()
-	l.SetLevel(logLevel)
+	l.SetLevel(config.LogLevel)
 	l.Debug("Creating Discord music bot ...")
 
 	bot := &Bot{
@@ -40,14 +50,13 @@ func NewBot(ctx context.Context, logLevel log.Level, appCommandsConfig *Applicat
 		Logger:                        l,
 		ready:                         false,
 		service:                       service.NewService(),
-		builder:                       builder.NewBuilder(builderConfig),
-		datastore:                     datastore.NewDatastore(datastoreConfig),
-		youtubeClient:                 youtube.NewYoutubeClient(youtubeConfig),
-		applicationCommandsConfig:     appCommandsConfig,
+		builder:                       builder.NewBuilder(config.QueueBuilder),
+		datastore:                     datastore.NewDatastore(config.Datastore),
+		youtubeClient:                 youtube.NewYoutubeClient(config.Youtube),
+		config:                        config,
 		audioplayers:                  make(map[string]*audioplayer.AudioPlayer),
 		queueUpdateInteractionsBuffer: make(map[string]chan *discordgo.Interaction),
 		blockedButtons:                make(map[string]map[string]struct{}),
-		audioplayerConfig:             apConfig,
 	}
 	l.Info("Discord music bot created")
 	return bot
@@ -73,11 +82,11 @@ func (bot *Bot) Init() error {
 // Run is a long lived worker that creates a new discord session,
 // verifies it, adds required intents and discord event handlers,
 // then runs while the context is alive.
-func (bot *Bot) Run(token string) {
+func (bot *Bot) Run() {
 	done := bot.ctx.Done()
 
 	bot.Info("Creating new Discord session...")
-	session, err := discordgo.New("Bot " + token)
+	session, err := discordgo.New("Bot " + bot.config.DiscordToken)
 	if err != nil {
 		bot.Panic(err)
 	}

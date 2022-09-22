@@ -12,14 +12,19 @@ type ChatCommandConfig struct {
 	Description string `yaml:"Description" validate:"required"`
 }
 
-type MessageCommandConfig struct {
-	Name string `yaml:"Name" validate:"required"`
+type ModalConfig struct {
+	Name        string `yaml:"Name" validate:"required"`
+	Label       string `yaml:"Label" validate:"required"`
+	Placeholder string `yaml:"Placeholder" validate:"required"`
 }
 
-type ApplicationCommandsConfig struct {
-	Music    *ChatCommandConfig    `yaml:"Music" validate:"required"`
-	Help     *ChatCommandConfig    `yaml:"Help" validate:"required"`
-	AddSongs *MessageCommandConfig `yaml:"AddSongs" validate:"required"`
+type SlashCommandsConfig struct {
+	Music *ChatCommandConfig `yaml:"Music" validate:"required"`
+	Help  *ChatCommandConfig `yaml:"Help" validate:"required"`
+}
+
+type ModalsConfig struct {
+	AddSongs *ModalConfig `yaml:"AddSongs" validate:"required"`
 }
 
 // setSlashCommands deletes all of the bot's previously
@@ -33,12 +38,12 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 
 	commands := []*discordgo.ApplicationCommand{
 		{
-			Name:        bot.applicationCommandsConfig.Music.Name,
-			Description: bot.applicationCommandsConfig.Music.Description,
+			Name:        bot.config.SlashCommands.Music.Name,
+			Description: bot.config.SlashCommands.Music.Description,
 		},
 		{
-			Name:        bot.applicationCommandsConfig.Help.Name,
-			Description: bot.applicationCommandsConfig.Help.Description,
+			Name:        bot.config.SlashCommands.Help.Name,
+			Description: bot.config.SlashCommands.Help.Description,
 		},
 	}
 	// fetch all global application commands defined by

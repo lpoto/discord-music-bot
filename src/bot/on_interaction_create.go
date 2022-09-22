@@ -23,6 +23,16 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		"GuildID", i.GuildID,
 	).Tracef("Interaction created (%s)", i.ID)
 
+	// NOTE: check permissions for the client in the channel
+	// ... it should always have the send messages permission
+	per, err := s.State.UserChannelPermissions(s.State.User.ID, i.ChannelID)
+	if err != nil {
+		return
+	}
+	if per&discordgo.PermissionSendMessages != discordgo.PermissionSendMessages {
+		return
+	}
+
 	channelID := ""
 	if userState, _ := s.State.VoiceState(
 		i.GuildID, i.Member.User.ID,
@@ -42,7 +52,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// determine which one
 
 		switch i.ApplicationCommandData().Name {
-		case bot.applicationCommandsConfig.Music.Name:
+		case bot.config.SlashCommands.Music.Name:
 			// music slash command has been used
 			if !bot.checkVoice(s, i) {
 				// should check voice connection when starting
@@ -51,7 +61,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 			}
 			bot.onMusicSlashCommand(s, i)
 			bot.play(s, i.GuildID, channelID)
-		case bot.applicationCommandsConfig.Help.Name:
+		case bot.config.SlashCommands.Help.Name:
 			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)
 		}
@@ -61,8 +71,8 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// NOTE: no need to check voice connection, as
 		// it has already been checked in order to reach the modal
 		switch bot.getModalName(i.Interaction.ModalSubmitData()) {
-		case bot.applicationCommandsConfig.AddSongs.Name:
-			// add songs modal has been submited
+		// add songs modal has been submited
+		case bot.config.Modals.AddSongs.Name:
 			bot.onAddSongsModalSubmit(s, i)
 			bot.play(s, i.GuildID, channelID)
 		}
