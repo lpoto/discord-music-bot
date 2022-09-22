@@ -58,6 +58,44 @@ func NewDeferFunctions(success func(*discordgo.Session, string), err func(*disco
 	}
 }
 
+// Pause pauses the current stream
+func (ap *AudioPlayer) Pause() {
+	ap.pause = true
+}
+
+// Pause resumes the current stream
+func (ap *AudioPlayer) Unpause() {
+	ap.pause = false
+}
+
+// IsPaused returns true if the audioplayer is currenthly
+// paused, false otherwise
+func (ap *AudioPlayer) IsPaused() bool {
+	return ap.pause
+}
+
+// Stop stops the current stream, if there is any
+func (ap *AudioPlayer) Stop() {
+	ap.stop = true
+}
+
+// PlaybackPosition returns the duration of the currently playing
+// stream already streamed, rounded to seconds. Returns 0 if nothing
+// is playing.
+func (ap *AudioPlayer) PlaybackPosition() time.Duration {
+	return 0
+}
+
+// AddDeferFunc adds the provided function to the deferFuncBuffer.
+// Functions in this buffer are then called when the player finishes,
+// instead of the default defer func.
+func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
+	select {
+	case ap.funcs.onSuccessBuffer <- f:
+	default:
+	}
+}
+
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
 func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
@@ -74,20 +112,21 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	var video *youtube.Video = nil
 	body, err = nil, errors.New("Failed to get stream body")
 
-	for i := 0; i < 3; i++ {
+	// NOTE: try fetching the format 2 times, in case something
+	// went wrong
+	for i := 0; i < 2; i++ {
 		video, format, err = ap.getStreamFormat(song.Url)
 		if err == nil {
-			body, err = ap.getStreamBody(video, format)
-		}
-		if err == nil {
-			break
+			if body, err = ap.getStreamBody(video, format); err == nil {
+				break
+			}
 		}
 	}
-
 	if err != nil {
 		ap.funcs.onFailure(ap.session, ap.guildID)
 		return err
 	}
+
 	defer body.Close()
 
 	// NOTE: determine the frameRate, size and channels
@@ -99,8 +138,11 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	frameSize := frameRate / 50
 	channels := format.AudioChannels
 
+	ffmpegArgs := ap.getFFmpegArgs(frameRate, channels)
+
 	ctx, cancel := context.WithCancel(ctx)
 
+	// NOTE: int16 as "s16le" is ussed as audio format in ffmpeg
 	pcmChannel := make(chan []int16, 2)
 
 	ap.pcm = NewPCM(frameRate, frameSize, channels, pcmChannel, voiceConnection)
@@ -126,7 +168,7 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 			ap.funcs.onFailure(ap.session, ap.guildID)
 			return nil
 		}
-		stdout, err := ap.runFFmpegCommand(body, channels, frameRate)
+		stdout, err := ap.runFFmpegCommand(body, ffmpegArgs)
 		if err != nil {
 			ap.funcs.onFailure(ap.session, ap.guildID)
 			return err
@@ -165,42 +207,32 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	return streamAudio(0)
 }
 
-// Pause pauses the currently streaming session if any
-func (ap *AudioPlayer) Pause() {
-	ap.pause = true
-}
-
-// Pause unpauses the currently streaming session if any
-func (ap *AudioPlayer) Unpause() {
-	ap.pause = false
-}
-
-// IsPaused returns true if the audioplayer is currenthly
-// paused, false otherwise
-func (ap *AudioPlayer) IsPaused() bool {
-	return ap.pause
-}
-
-// Stop stops the current stream, if there is any
-func (ap *AudioPlayer) Stop() {
-	ap.stop = true
-}
-
-// AddDeferFunc adds the provided function to the deferFuncBuffer.
-// Functions in this buffer are then called when the player finishes,
-// instead of the default defer func.
-func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
-	select {
-	case ap.funcs.onSuccessBuffer <- f:
-	default:
+// runFFmpegCommand runs ffmpeg with the provided body and arguments
+func (ap *AudioPlayer) runFFmpegCommand(body io.ReadCloser, args []string) (io.ReadCloser, error) {
+	run := exec.Command("ffmpeg", args...)
+	run.Stdin = body
+	stdout, err := run.StdoutPipe()
+	if err != nil {
+		return nil, err
 	}
+	err = run.Start()
+	if err != nil {
+		return nil, err
+	}
+	return stdout, nil
 }
 
-// PlaybackPosition returns the duration of the currently playing
-// stream already streamed, rounded to seconds. Returns 0 if nothing
-// is playing.
-func (ap *AudioPlayer) PlaybackPosition() time.Duration {
-	return 0
+// getFFmpegArgs returns the arguments used by ffmpeg
+// Arguments use piping from stdout instead of input file
+// and 's16le' audio format.
+func (ap *AudioPlayer) getFFmpegArgs(frameRate int, channels int) []string {
+	return []string{
+		"-i", "-",
+		"-f", "s16le",
+		"-ar", strconv.Itoa(frameRate),
+		"-ac", strconv.Itoa(channels),
+		"pipe:1", // 0 stdin, 1 stdout, 2 stderr
+	}
 }
 
 // getStreamBody gets the stream url from youtube from
@@ -271,30 +303,6 @@ func (ap *AudioPlayer) getStreamFormat(url string) (*youtube.Video, *youtube.For
 		return nil, nil, errors.New("No formats found")
 	}
 	return video, &formats[0], nil
-}
-
-// runFFmpegCommand runs ffmpeg with the provided body
-// and the audio player's configuration
-func (ap *AudioPlayer) runFFmpegCommand(body io.ReadCloser, channels int, frameRate int) (io.ReadCloser, error) {
-	run := exec.Command(
-		"ffmpeg",
-		"-i", "-", "-f", "s16le", "-ar",
-		strconv.Itoa(frameRate), "-ac",
-		strconv.Itoa(channels), "pipe:1",
-	)
-	run.Stdin = body
-	stdout, err := run.StdoutPipe()
-	if err != nil {
-		ap.funcs.onFailure(ap.session, ap.guildID)
-		return nil, err
-	}
-	err = run.Start()
-	if err != nil {
-		ap.funcs.onFailure(ap.session, ap.guildID)
-		return nil, err
-	}
-	return stdout, nil
-
 }
 
 // getDefferFunc returns the function that should be called when the
