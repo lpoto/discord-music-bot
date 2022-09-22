@@ -1,0 +1,85 @@
+#!/bin/bash
+
+set -e
+
+# make sure all the required tools are installed
+for c in 'sed' 'git' 'docker' 'cp' 'cd'
+do
+    if ! command -v $c &> /dev/null
+    then
+        echo "The tool '$c' cannot be used,"
+        echo "please make sure '$c' is available before proceeding ..."
+        exit
+    fi
+done
+
+if [[ $(git diff --stat) != '' ]]; then
+    # check if clean, so the code always matched the code
+    # belonging to the version tag
+    echo 'Working tree has changes, please commit first ...'
+    exit
+fi
+
+# cd to the script's directory
+cd "${0%/*}"
+
+# get docker.io username
+USERNAME=""
+read -p "docker.io username: "  USERNAME
+echo
+
+REPO=""
+NAME=""
+
+read -p "Docker repository (default: 'discord'): " REPO
+if [[ -z "$REPO" ]] ; then
+    REPO="discord"
+fi
+read -p "Docker image name (default: 'music-bot'): " NAME
+if [[ -z "$NAME" ]] ; then
+    NAME="music-bot"
+fi
+
+# version matches the latest version tag
+VERSION=$(git describe --tags $(git rev-list --tags='v?[0-9]+.[0-9]*' --max-count=1))
+VERSION=$(echo $VERSION | sed 's/[^[0-9\.]]*\([0-9].*\.[0-9_].\)/\1/')
+if [[ -z "$VERSION" ]] ; then
+    echo "No git version tag detected, using test version ..."
+    echo
+    VERSION=1.0.0-test
+fi
+
+TAG=$NAME$VERSION
+
+echo "Project version: $VERSION"
+echo "Using image tag: $TAG"
+echo "Using docker repo: $REPO"
+echo
+
+echo
+echo "NOTE version is extracted from the lastest git version tag"
+
+# make sure to not push with an invalid config
+read -p "Continue? [y/n] " yn
+case $yn in
+    [Yy]* ) ;;
+    [Nn]* ) exit;;
+    * ) exit;;
+esac
+echo
+
+## login to docker.io
+echo "Docker login:"
+docker login -u "$USERNAME" docker.io
+
+IMAGE="$USERNAME/$REPO:$TAG$VERSION"
+
+echo  "Building: $IMAGE"
+echo
+
+docker build -f ../.dockerenv/Dockerfile ../ -t $IMAGE
+
+echo
+echo  "Pushing: $IMAGE"
+docker push $IMAGE
+
