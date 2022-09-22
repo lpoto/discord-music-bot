@@ -14,7 +14,7 @@ import (
 func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Add songs message command")
 	m := bot.getModal(
-		bot.applicationCommandsConfig.AddSongs.Name,
+		"Add songs",
 		bot.addSongsComponents(),
 	)
 	if err := s.InteractionRespond(
@@ -24,7 +24,7 @@ func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.Interaction
 			Data: &discordgo.InteractionResponseData{
 				Components: m.Components,
 				CustomID:   m.CustomID,
-				Title:      bot.applicationCommandsConfig.AddSongs.Name,
+				Title:      "Add songs",
 			},
 		},
 	); err != nil {
@@ -36,13 +36,10 @@ func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.Interaction
 }
 
 func (bot *Bot) addSongsComponents() []discordgo.MessageComponent {
-	placeholder := `song name or url #1
-song name or url  #2
-...`
 	textInput := discordgo.TextInput{
 		CustomID:    uuid.NewString(),
-		Label:       "Enter names or urls of youtube songs",
-		Placeholder: placeholder,
+		Label:       bot.config.Modals.AddSongs.Label,
+		Placeholder: bot.config.Modals.AddSongs.Placeholder,
 		Style:       discordgo.TextInputParagraph,
 		MinLength:   1,
 		MaxLength:   1000,

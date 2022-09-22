@@ -1,15 +1,18 @@
 MusicBot:
-  LogLevel: TRACE
-  DiscordToken: discord-bot-token
-  ApplicationCommands:
+  LogLevel: DEBUG
+  DiscordToken: discord_bot_token
+  SlashCommands:
     Music:
       Name: music
       Description: "Life is one grand, sweet song so start the music."
     Help:
       Name: help
       Description: "Info about using the music bot"
+  Modals:
     AddSongs:
-      Name: Add songs
+      Name: Add Songs
+      Label: Enter names or urls of youtube songs
+      Placeholder: "song name or url#1\nsong name or url#2\n..."
   QueueBuilder:
     Title: Music Queue
     Description: ""
@@ -23,18 +26,20 @@ MusicBot:
       Replay: "↺"
       Loop: "Loop"
       AddSongs: "Add"
+      Join: "Join"
   AudioPlayer:
     Channels: 2
     FrameRate: 48000
     FrameSize: 960
     Retry: 3
   Youtube:
-    LogLevel: TRACE
+    LogLevel: DEBUG
     MaxParallelQueries: 100
   Datastore:
-    LogLevel: TRACE
+    LogLevel: DEBUG
     Database: discord_bot
     Host: localhost
     Port: 5432
     User: postgres
     Password: postgres
+

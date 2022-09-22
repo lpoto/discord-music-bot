@@ -42,7 +42,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// determine which one
 
 		switch i.ApplicationCommandData().Name {
-		case bot.applicationCommandsConfig.Music.Name:
+		case bot.config.SlashCommands.Music.Name:
 			// music slash command has been used
 			if !bot.checkVoice(s, i) {
 				// should check voice connection when starting
@@ -51,7 +51,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 			}
 			bot.onMusicSlashCommand(s, i)
 			bot.play(s, i.GuildID, channelID)
-		case bot.applicationCommandsConfig.Help.Name:
+		case bot.config.SlashCommands.Help.Name:
 			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)
 		}
@@ -61,8 +61,8 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// NOTE: no need to check voice connection, as
 		// it has already been checked in order to reach the modal
 		switch bot.getModalName(i.Interaction.ModalSubmitData()) {
-		case bot.applicationCommandsConfig.AddSongs.Name:
-			// add songs modal has been submited
+		// add songs modal has been submited
+		case bot.config.Modals.AddSongs.Name:
 			bot.onAddSongsModalSubmit(s, i)
 			bot.play(s, i.GuildID, channelID)
 		}

@@ -11,7 +11,7 @@ import (
 // READY event
 func (bot *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	s.UpdateListeningStatus(
-		"/" + bot.applicationCommandsConfig.Help.Name,
+		"/" + bot.config.SlashCommands.Help.Name,
 	)
 	time.Sleep(time.Second)
 	bot.WithFields(log.Fields{

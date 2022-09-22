@@ -28,7 +28,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 
 	ap := audioplayer.NewAudioPlayer(
 		s, guildID,
-		bot.audioplayerConfig,
+		bot.config.AudioPlayer,
 		audioplayer.NewDeferFunctions(
 			bot.audioplayerDefaultDefer,
 			bot.audioplayerDefaultErrorDefer,

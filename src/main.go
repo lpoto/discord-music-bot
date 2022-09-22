@@ -3,14 +3,8 @@ package main
 import (
 	"context"
 	"discord-music-bot/bot"
-	"discord-music-bot/bot/audioplayer"
-	"discord-music-bot/builder"
-	"discord-music-bot/client/youtube"
 	"discord-music-bot/config"
-	"discord-music-bot/datastore"
 	"flag"
-	"io/ioutil"
-	defaultLog "log"
 	"os"
 	"os/signal"
 	"strings"
@@ -20,18 +14,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type MusicBot struct {
-	Config *Configuration `yaml:"MusicBot" validate:"required"`
-}
-
 type Configuration struct {
-	LogLevel            log.Level                      `yaml:"LogLevel" validate:"required"`
-	DiscordToken        string                         `yaml:"DiscordToken" validate:"required"`
-	Datastore           *datastore.Configuration       `yaml:"Datastore" validate:"required"`
-	QueueBuilder        *builder.Configuration         `yaml:"QueueBuilder" validate:"required"`
-	ApplicationCommands *bot.ApplicationCommandsConfig `yaml:"ApplicationCommands" validate:"required"`
-	AudioPlayer         *audioplayer.Configuration     `yaml:"AudioPlayer" validate:"required"`
-	Youtube             *youtube.Configuration         `yaml:"Youtube" validate:"required"`
+	MusicBot *bot.Configuration `yaml:"MusicBot" validate:"required"`
 }
 
 // initBot creates a new bot object with the provided config,
@@ -39,12 +23,7 @@ type Configuration struct {
 func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 	bot := bot.NewBot(
 		ctx,
-		configuration.LogLevel,
-		configuration.ApplicationCommands,
-		configuration.QueueBuilder,
-		configuration.Datastore,
-		configuration.Youtube,
-		configuration.AudioPlayer,
+		configuration.MusicBot,
 	)
 	if err := bot.Init(); err != nil {
 		log.Panic(err)
@@ -55,17 +34,16 @@ func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
 // loadConfig loads the config from the provided yaml
 // files into the Configuration object, panics on error
 func loadConfig(configFiles []string) *Configuration {
-	var musicBot MusicBot
-	err := config.LoadAndValidateConfiguration(configFiles, &musicBot)
+	var configuration Configuration
+	err := config.LoadAndValidateConfiguration(configFiles, &configuration)
 	if err != nil {
 		log.Panic(err)
 	}
-	return musicBot.Config
+	return &configuration
 
 }
 
 func main() {
-	defaultLog.SetOutput(ioutil.Discard)
 	configFileParam := flag.String(
 		"configFiles",
 		"config.yaml",
@@ -92,6 +70,6 @@ func main() {
 		log.Fatal("Forced shutdown")
 	}()
 
-	bot.Run(configuration.DiscordToken)
+	bot.Run()
 	log.Print("Clean Shutdown")
 }
