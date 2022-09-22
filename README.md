@@ -35,3 +35,13 @@ cd src
 
 CGO_CLAGS="-w -Os" go run .
 ```
+
+## Building the image
+
+Running:
+```bash
+.dockerenv/build
+```
+builds the bot image and pushes it to [docker hub](https://hub.docker.com/).
+To use the built image, replace the `build:` section in [docker-compose.yaml](./.dockerenv/docker-compose.yaml)
+with `image: <built-image-reference>`.
