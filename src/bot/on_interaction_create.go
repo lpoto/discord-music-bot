@@ -23,6 +23,16 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		"GuildID", i.GuildID,
 	).Tracef("Interaction created (%s)", i.ID)
 
+	// NOTE: check permissions for the client in the channel
+	// ... it should always have the send messages permission
+	per, err := s.State.UserChannelPermissions(s.State.User.ID, i.ChannelID)
+	if err != nil {
+		return
+	}
+	if per&discordgo.PermissionSendMessages != discordgo.PermissionSendMessages {
+		return
+	}
+
 	channelID := ""
 	if userState, _ := s.State.VoiceState(
 		i.GuildID, i.Member.User.ID,

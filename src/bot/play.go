@@ -45,9 +45,29 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 	if queue.HeadSong == nil {
 		return
 	}
+
 	_, err = s.ChannelVoiceJoin(guildID, channelID, false, false)
 	if err != nil {
-		bot.Errorf("Could not join voice: %v", err)
+		bot.Tracef("Could not join voice: %v", err)
+		if _, ok := bot.queueUpdateInteractionsBuffer[guildID]; ok {
+		responseLoop:
+			for i := 0; i < len(bot.queueUpdateInteractionsBuffer[guildID]); i++ {
+				select {
+				case interaction := <-bot.queueUpdateInteractionsBuffer[guildID]:
+					err := s.InteractionRespond(interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Cannot join the channel, I may be missing permissions",
+							Flags:   1 << 6, //Ephemeral
+						},
+					})
+					if err != nil {
+						continue responseLoop
+					}
+					break responseLoop
+				}
+			}
+		}
 		return
 	}
 
