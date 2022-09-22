@@ -58,26 +58,33 @@ echo
 
 echo
 echo "NOTE version is extracted from the lastest git version tag"
+echo
+
+## login to docker.io
+echo "Login to docker.io to build the image: "
+docker login -u "$USERNAME" docker.io
+
+IMAGE="$USERNAME/$REPO:$TAG"
+
+echo  "Building: $IMAGE"
+echo
+
+docker build -f ../.dockerenv/Dockerfile ../ -t $IMAGE
+
+echo
+echo "Built image:"
+echo
+echo $(echo $(docker images -f "reference=$USERNAME/$REPO:$TAG") | sed 's/REPOSITORY TAG IMAGE ID CREATED SIZE *\(.*\)/\1/')
 
 # make sure to not push with an invalid config
-read -p "Continue? [y/n] " yn
+echo
+read -p "Push image? [y/n] " yn
 case $yn in
     [Yy]* ) ;;
     [Nn]* ) exit;;
     * ) exit;;
 esac
 echo
-
-## login to docker.io
-echo "Docker login:"
-docker login -u "$USERNAME" docker.io
-
-IMAGE="$USERNAME/$REPO:$TAG$VERSION"
-
-echo  "Building: $IMAGE"
-echo
-
-docker build -f ../.dockerenv/Dockerfile ../ -t $IMAGE
 
 echo
 echo  "Pushing: $IMAGE"
