@@ -37,9 +37,4 @@ MusicBot:
     MaxParallelQueries: 100
   Datastore:
     LogLevel: DEBUG
-    Database: discord_bot
-    Host: localhost
-    Port: 5432
-    User: postgres
-    Password: postgres
 

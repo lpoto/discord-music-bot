@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  music-bot:
+    build:
+    # NOTE: replace 'build' with:
+    #     `image: docker-hub-user/repo:imagetag`
+    # When building the image with the build script and
+    # pushing it to the docker-hub
+      context: ..
+      dockerfile: .dockerenv/Dockerfile
+    container_name: music-bot
+    restart: unless-stopped
+    environment:
+      # NOTE: these env. variables should match
+      # the variables in 'postgres' service
+      POSTGRES_DB: discord_bot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    # add the path to the config file as the command line
+    # argument when starting the bot
+    command: "-configFiles=/go/bin/conf/config.yaml"
+    volumes:
+      # NOTE: change the '../src/config.yaml' 
+      # to the location of yout config.yaml file
+      - ../src/config.yaml:/go/bin/conf/config.yaml
+    depends_on:
+      postgres:
+        condition: service_started
+    networks:
+      - discord-bots
+
+  # the datastore service
+  postgres:
+      image: postgres:14.1-alpine
+      container_name: postgres
+      restart: unless-stopped
+      ports:
+          - 5432:5432
+      environment:
+          POSTGRES_DB: discord_bot
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+      volumes:
+          - postgres-data:/var/lib/postgresql/data
+      networks:
+        - discord-bots
+
+volumes:
+    postgres-data:
+        driver: local
+networks:
+    discord-bots:
+      name: discord-bots

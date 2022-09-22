@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -27,9 +28,11 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 	// ... it should always have the send messages permission
 	per, err := s.State.UserChannelPermissions(s.State.User.ID, i.ChannelID)
 	if err != nil {
+		bot.Trace("Client missing all permissions in text channel")
 		return
 	}
 	if per&discordgo.PermissionSendMessages != discordgo.PermissionSendMessages {
+		bot.Trace("Client missing send messages permission")
 		return
 	}
 
@@ -51,8 +54,9 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// NOTE: an application command has been used,
 		// determine which one
 
-		switch i.ApplicationCommandData().Name {
-		case bot.config.SlashCommands.Music.Name:
+		name := strings.TrimSpace(i.ApplicationCommandData().Name)
+		switch name {
+		case strings.TrimSpace(bot.config.SlashCommands.Music.Name):
 			// music slash command has been used
 			if !bot.checkVoice(s, i) {
 				// should check voice connection when starting
@@ -61,7 +65,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 			}
 			bot.onMusicSlashCommand(s, i)
 			bot.play(s, i.GuildID, channelID)
-		case bot.config.SlashCommands.Help.Name:
+		case strings.TrimSpace(bot.config.SlashCommands.Help.Name):
 			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)
 		}
@@ -70,9 +74,10 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// determine which modal has been submitted
 		// NOTE: no need to check voice connection, as
 		// it has already been checked in order to reach the modal
-		switch bot.getModalName(i.Interaction.ModalSubmitData()) {
+		name := strings.TrimSpace(bot.getModalName(i.Interaction.ModalSubmitData()))
+		switch name {
 		// add songs modal has been submited
-		case bot.config.Modals.AddSongs.Name:
+		case strings.TrimSpace(bot.config.Modals.AddSongs.Name):
 			bot.onAddSongsModalSubmit(s, i)
 			bot.play(s, i.GuildID, channelID)
 		}

@@ -3,7 +3,10 @@ package datastore
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	_ "github.com/lib/pq"
@@ -19,11 +22,6 @@ type Datastore struct {
 
 type Configuration struct {
 	LogLevel log.Level `yaml:"LogLevel" validate:"required"`
-	Database string    `yaml:"Database" validate:"required"`
-	Host     string    `yaml:"Host" validate:"required"`
-	Port     int       `yaml:"Port" validate:"required"`
-	User     string    `yaml:"User" validate:"required"`
-	Password string    `yaml:"Password" validate:"required"`
 }
 
 // NewDatastore constructs an object that handles persisting
@@ -41,15 +39,41 @@ func NewDatastore(config *Configuration) *Datastore {
 func (datastore *Datastore) Connect() error {
 	datastore.Info("Oppening postgres connection ...")
 
+	host := os.Getenv("POSTGRES_HOST")
+	if len(host) == 0 {
+		return errors.New("Missing environment variable 'POSTGRES_HOST'")
+	}
+	portString := os.Getenv("POSTGRES_PORT")
+	if len(portString) == 0 {
+		return errors.New("Missing environment variable 'POSTGRES_PORT'")
+	}
+	user := os.Getenv("POSTGRES_USER")
+	if len(user) == 0 {
+		return errors.New("Missing environment variable 'POSTGRES_USER'")
+	}
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if len(password) == 0 {
+		return errors.New("Missing environment variable 'POSTGRES_PASSWORD'")
+	}
+	database := os.Getenv("POSTGRES_DB")
+	if len(database) == 0 {
+		return errors.New("Missing environment variable 'POSTGRES_DB'")
+	}
+
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		return errors.New("'POSTGRES_PORT' is not a valid port number")
+	}
+
 	db, err := sql.Open(
 		"postgres",
 		fmt.Sprintf(
 			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			datastore.config.Host,
-			datastore.config.Port,
-			datastore.config.User,
-			datastore.config.Password,
-			datastore.config.Database,
+			host,
+			port,
+			user,
+			password,
+			database,
 		),
 	)
 	if err != nil {
