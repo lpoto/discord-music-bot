@@ -5,6 +5,7 @@ import (
 	"discord-music-bot/model"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os/exec"
@@ -89,7 +90,16 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		voiceConnection.Speaking(false)
 	}()
 
-	body, err := ap.getStreamBody(song.Url)
+	var body io.ReadCloser
+	var err error
+	var format *youtube.Format = nil
+	var video *youtube.Video = nil
+	body, err = nil, errors.New("Failed to get stream body")
+
+	for i := 0; i < ap.config.Retry; i++ {
+		video, format, err = ap.getStreamFormat(song.Url)
+		body, err = ap.getStreamBody(video, format)
+	}
 
 	if err != nil {
 		ap.funcs.onFailure(ap.session, ap.guildID)
@@ -185,33 +195,75 @@ func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 	return 0
 }
 
+// getStreamFormat gets the youtube video belonging to the provided
+// url and returns it's format that best fits the music bot
+func (ap *AudioPlayer) getStreamFormat(url string) (*youtube.Video, *youtube.Format, error) {
+	video, err := ap.client.GetVideo(url)
+	if err != nil {
+		return nil, nil, err
+	}
+	// NOTE: filter the formats, so we get the smallest video
+	// with best audio quality
+	formats := video.Formats
+	if formats2 := formats.WithAudioChannels(); len(formats2) > 0 {
+		formats = formats2
+	}
+	// NOTE: try to get audio formats with opus codecs
+	if formats2 := formats.Type(`audio/mp4; codecs="opus"`); len(formats2) > 0 {
+		formats = formats2
+	} else if formats2 := formats.Type(`audio/webm; codecs="opus"`); len(formats2) > 0 {
+		formats = formats2
+	}
+	// NOTE: try to get the best possible audio quality
+	formats2 := make(youtube.FormatList, 0)
+	for _, f := range formats {
+		if f.AudioQuality == "AUDIO_QUALITY_HIGH" {
+			formats2 = append(formats2, f)
+		}
+	}
+	if len(formats2) == 0 {
+		for _, f := range formats {
+			if f.AudioQuality == "AUDIO_QUALITY_MEDIUM" {
+				formats2 = append(formats2, f)
+			}
+		}
+	}
+	if len(formats2) > 0 {
+		formats = formats2
+	}
+	// NOTE: try to get the smallest possible video size
+	// as video quality is unimportant
+	if formats2 := formats.Quality("tiny"); len(formats2) > 0 {
+		formats = formats2
+	} else if formats2 := formats.Quality("small"); len(formats2) > 0 {
+		formats = formats2
+	} else if formats2 := formats.Quality("medium"); len(formats2) > 0 {
+		formats = formats2
+	}
+	if len(formats) == 0 {
+		return nil, nil, errors.New("No formats found")
+	}
+	return video, &formats[0], nil
+
+}
+
 // getStreamBody gets the stream url from youtube from
 // the provided url, then calls a http request and fetches the body
 // for the stream
-func (ap *AudioPlayer) getStreamBody(url string) (io.ReadCloser, error) {
-	video, err := ap.client.GetVideo(url)
+func (ap *AudioPlayer) getStreamBody(video *youtube.Video, format *youtube.Format) (io.ReadCloser, error) {
+	url, err := ap.client.GetStreamURL(video, format)
 	if err != nil {
 		return nil, err
 	}
-	var f func(int) (io.ReadCloser, error)
-
-	f = func(retries int) (io.ReadCloser, error) {
-		if retries > 2 {
-			return nil, errors.New("Status code != 200")
-		}
-		formats := video.Formats.WithAudioChannels()
-		url, err = ap.client.GetStreamURL(video, &formats[0])
-		resp, err := http.Get(url)
-		if err != nil {
-			return nil, err
-		}
-		if resp.StatusCode != 200 {
-			resp.Body.Close()
-			return f(retries + 1)
-		}
-		return resp.Body, nil
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
 	}
-	return f(0)
+	if resp.StatusCode != 200 {
+		resp.Body.Close()
+		return nil, errors.New(fmt.Sprintf("Response status code: %v", resp.StatusCode))
+	}
+	return resp.Body, nil
 }
 
 // runFFmpegCommand runs ffmpeg with the provided body
