@@ -42,7 +42,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 
-	bot.interactionToQueueUpdateBuffer(s, i.Interaction)
+	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
 	songInfos := bot.youtubeClient.SearchSongs(queries)
 	if len(songInfos) == 0 {
@@ -65,5 +65,6 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 
-	bot.updateQueue(s, i.GuildID)
+	bot.queueUpdater.NeedsUpdate(i.GuildID)
+	bot.queueUpdater.Update(s, i.GuildID)
 }

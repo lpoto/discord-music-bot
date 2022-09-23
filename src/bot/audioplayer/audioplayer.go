@@ -20,6 +20,7 @@ type AudioPlayer struct {
 	funcs            *DeferFunctions
 	encodingSession  *dca.EncodeSession
 	streamingSession *dca.StreamingSession
+	durationSeconds  int
 	stop             bool
 }
 
@@ -82,21 +83,36 @@ func (ap *AudioPlayer) IsPaused() bool {
 
 // Stop stops the current stream, if there is any
 func (ap *AudioPlayer) Stop() {
+	ap.stop = true
 	if ap.encodingSession == nil {
 		return
 	}
 	ap.encodingSession.Stop()
-	ap.stop = true
 }
 
 // PlaybackPosition returns the duration of the currently playing
-// stream already streamed, rounded to seconds. Returns 0 if nothing
+// stream already streamed. Returns 0 if nothing
 // is playing.
 func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 	if ap.streamingSession == nil {
 		return 0
 	}
+	if finished, err := ap.streamingSession.Finished(); err != nil || finished {
+		return 0
+	}
 	return ap.streamingSession.PlaybackPosition()
+}
+
+// TimeLeft returns the duration before the
+// current stream finishes. 0 if there is no stream.
+func (ap *AudioPlayer) TimeLeft() time.Duration {
+	if ap.streamingSession == nil {
+		return 0
+	}
+	if finished, err := ap.streamingSession.Finished(); err != nil || finished {
+		return 0
+	}
+	return time.Duration(ap.durationSeconds*int(time.Second)) - ap.PlaybackPosition()
 }
 
 // AddDeferFunc adds the provided function to the deferFuncBuffer.
@@ -117,6 +133,12 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		return errors.New("Not connected to voice")
 	}
 
+	if ap.stop {
+		ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+		return nil
+	}
+	ap.durationSeconds = song.DurationSeconds
+
 	voiceConnection.Speaking(true)
 	defer voiceConnection.Speaking(false)
 
@@ -133,6 +155,8 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	// went wrong
 	for i := 0; i < 3; i++ {
 		if ap.stop {
+			ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+			ap.durationSeconds = 0
 			return nil
 		}
 		video, format, err = ap.getStreamFormat(song.Url)
@@ -142,6 +166,7 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	}
 	if err != nil {
 		ap.funcs.onFailure(ap.session, ap.guildID)
+		ap.durationSeconds = 0
 		return err
 	}
 	options := dca.StdEncodeOptions
@@ -150,6 +175,7 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	options.Application = "lowdelay"
 
 	err = nil
+	f := ap.funcs.onFailure
 
 streamingLoop:
 	// NOTE: try to run the stream 3 times in case
@@ -157,19 +183,15 @@ streamingLoop:
 	// with an error in less than a second
 	for i := 0; i < 3; i++ {
 		if ap.stop {
-			ap.funcs.getDeferFunc()(ap.session, ap.guildID)
-			return nil
+			f = ap.funcs.getDeferFunc()
+			break streamingLoop
 		}
 
 		ap.encodingSession, err = dca.EncodeFile(streamUrl, options)
 		if err != nil {
-			ap.funcs.onFailure(ap.session, ap.guildID)
 			continue streamingLoop
 		}
 		defer func() {
-			ap.encodingSession.Cleanup()
-			ap.encodingSession = nil
-			ap.streamingSession = nil
 		}()
 
 		done := ctx.Done()
@@ -186,7 +208,8 @@ streamingLoop:
 		for {
 			select {
 			case <-done:
-				return nil
+				err, f = nil, ap.funcs.getDeferFunc()
+				break streamingLoop
 			case err = <-streamDone:
 				// NOTE: the stream finished, if it lasted
 				// less than a second, retry it
@@ -194,21 +217,27 @@ streamingLoop:
 					continue streamingLoop
 				}
 				if err != nil && err != io.EOF {
+					f = ap.funcs.onFailure
 					break streamingLoop
 				}
 				// NOTE: the stream finished successfully
-				ap.funcs.getDeferFunc()(ap.session, ap.guildID)
-				return nil
+				err, f = nil, ap.funcs.getDeferFunc()
+				break streamingLoop
 			default:
 				if ap.stop {
-					ap.funcs.getDeferFunc()(ap.session, ap.guildID)
-					return nil
+					err, f = nil, ap.funcs.getDeferFunc()
+					break streamingLoop
 				}
 			}
 		}
 	}
-	// NOTE: when streaming is successful, the inner loop returns
-	ap.funcs.onFailure(ap.session, ap.guildID)
+	ap.encodingSession.Cleanup()
+	ap.encodingSession = nil
+	ap.streamingSession = nil
+	ap.durationSeconds = 0
+
+	f(ap.session, ap.guildID)
+
 	return err
 }
 

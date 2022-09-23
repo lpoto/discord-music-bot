@@ -14,11 +14,11 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 	if len(channelID) == 0 {
 		return
 	}
-	if _, ok := bot.audioplayers[guildID]; ok {
+	if _, ok := bot.audioplayers.Get(guildID); ok {
 		// NOTE: audio has already been started from
 		// another source, do not continue
 		time.Sleep(300 * time.Millisecond)
-		if _, ok := bot.audioplayers[guildID]; ok {
+		if _, ok := bot.audioplayers.Get(guildID); ok {
 			return
 		}
 		return
@@ -34,8 +34,8 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 		),
 	)
 
-	bot.audioplayers[guildID] = ap
-	defer delete(bot.audioplayers, guildID)
+	bot.audioplayers.Add(guildID, ap)
+	defer bot.audioplayers.Remove(guildID)
 
 	queue, err := bot.datastore.GetQueue(s.State.User.ID, guildID)
 	if err != nil {
@@ -48,11 +48,11 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 	_, err = s.ChannelVoiceJoin(guildID, channelID, false, false)
 	if err != nil {
 		bot.Tracef("Could not join voice: %v", err)
-		if _, ok := bot.queueUpdateInteractionsBuffer[guildID]; ok {
+		if buffer, ok := bot.queueUpdater.GetInteractionsBuffer(guildID); ok {
 		responseLoop:
-			for i := 0; i < len(bot.queueUpdateInteractionsBuffer[guildID]); i++ {
+			for i := 0; i < len(buffer); i++ {
 				select {
-				case interaction := <-bot.queueUpdateInteractionsBuffer[guildID]:
+				case interaction := <-buffer:
 					err := s.InteractionRespond(interaction, &discordgo.InteractionResponse{
 						Type: discordgo.InteractionResponseChannelMessageWithSource,
 						Data: &discordgo.InteractionResponseData{
@@ -87,7 +87,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 	case <-bot.ctx.Done():
 		return
 	default:
-		delete(bot.audioplayers, guildID)
+		bot.audioplayers.Remove(guildID)
 		bot.play(s, guildID, channelID)
 	}
 }
@@ -140,7 +140,8 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 		}
 	}
 
-	bot.updateQueue(s, guildID)
+	bot.queueUpdater.NeedsUpdate(guildID)
+	bot.queueUpdater.Update(s, guildID)
 }
 
 // audioplayerDefaultErrorDefer is the default function called
@@ -159,5 +160,6 @@ func (bot *Bot) audioplayerDefaultErrorDefer(s *discordgo.Session, guildID strin
 			"Error when removing song during play: %v", err,
 		)
 	}
-	bot.updateQueue(s, guildID)
+	bot.queueUpdater.NeedsUpdate(guildID)
+	bot.queueUpdater.Update(s, guildID)
 }
