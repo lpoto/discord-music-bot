@@ -119,6 +119,15 @@ func (bot *Bot) checkVoice(s *discordgo.Session, i *discordgo.InteractionCreate)
 			},
 		})
 		return false
+	} else if userState.Deaf || userState.SelfDeaf {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "You need to undeafen!",
+				Flags:   1 << 6, // Ephemeral
+			},
+		})
+		return false
 	}
 	if botState != nil && botState.ChannelID != userState.ChannelID {
 		// if the bot is in a voice channel, the user should be in the same channel
