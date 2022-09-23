@@ -29,32 +29,49 @@ func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
 	songBuffer := make(chan *model.SongInfo, len(queries))
 	var wg sync.WaitGroup
 
+	var prevWG *sync.WaitGroup = nil
+
+	// NOTE: run all queries in parallel, as each query may take
+	// more than a second to complete
 	for _, query := range queries {
 		if _, ok := added[query]; ok {
 			continue
 		}
+		// NOTE: all queries except the first one
+		// need to wait for the previous query to complete
+		// the search, so they are added to the channel in order
+		wg2 := &sync.WaitGroup{}
 		wg.Add(1)
+		wg2.Add(1)
 		added[query] = struct{}{}
-		go func(query string) {
+		go func(query string, prevWG *sync.WaitGroup) {
 			defer func() {
 				wg.Done()
+				wg2.Done()
 			}()
 			info, err := client.searchSong(query)
 			if err != nil {
 				client.Tracef("[%d]Youtube error: %v", i, err)
 				return
 			}
+			if prevWG != nil {
+				prevWG.Wait()
+			}
 			select {
 			case songBuffer <- info:
 			default:
 				client.Panic("Song buffer full")
 			}
+		}(query, prevWG)
 
-		}(query)
+		prevWG = wg2
 	}
 
+	// NOTE: wait for all the queries to complete
 	wg.Wait()
 
+	// NOTE: build a slice from the songs
+	// in the channel
 	cnt := len(songBuffer)
 	if cnt > 0 {
 		songs := make([]*model.SongInfo, 0, len(songBuffer))
