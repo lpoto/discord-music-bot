@@ -196,7 +196,7 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 					skipMutex.Unlock()
 					if ap, ok := updater.audioplayers.Get(
 						guildID,
-					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second/2) < interval {
+					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second) < interval {
 						return
 					}
 					updater.mutex.Lock()
