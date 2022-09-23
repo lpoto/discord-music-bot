@@ -82,11 +82,11 @@ func (ap *AudioPlayer) IsPaused() bool {
 
 // Stop stops the current stream, if there is any
 func (ap *AudioPlayer) Stop() {
+	ap.stop = true
 	if ap.encodingSession == nil {
 		return
 	}
 	ap.encodingSession.Stop()
-	ap.stop = true
 }
 
 // PlaybackPosition returns the duration of the currently playing
@@ -117,6 +117,11 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		return errors.New("Not connected to voice")
 	}
 
+	if ap.stop {
+		ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+		return nil
+	}
+
 	voiceConnection.Speaking(true)
 	defer voiceConnection.Speaking(false)
 
@@ -133,6 +138,7 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	// went wrong
 	for i := 0; i < 3; i++ {
 		if ap.stop {
+			ap.funcs.getDeferFunc()(ap.session, ap.guildID)
 			return nil
 		}
 		video, format, err = ap.getStreamFormat(song.Url)

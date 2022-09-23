@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"discord-music-bot/bot/audioplayer"
+	"discord-music-bot/bot/updater"
 	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
@@ -15,16 +16,16 @@ import (
 
 type Bot struct {
 	*log.Logger
-	ctx                           context.Context
-	ready                         bool
-	service                       *service.Service
-	builder                       *builder.Builder
-	datastore                     *datastore.Datastore
-	youtubeClient                 *youtube.YoutubeClient
-	audioplayers                  map[string]*audioplayer.AudioPlayer
-	queueUpdateInteractionsBuffer map[string]chan *discordgo.Interaction
-	blockedButtons                map[string]map[string]struct{}
-	config                        *Configuration
+	ctx            context.Context
+	ready          bool
+	service        *service.Service
+	builder        *builder.Builder
+	datastore      *datastore.Datastore
+	youtubeClient  *youtube.YoutubeClient
+	audioplayers   *audioplayer.AudioPlayersMap
+	queueUpdater   *updater.QueueUpdater
+	blockedButtons map[string]map[string]struct{}
+	config         *Configuration
 }
 
 type Configuration struct {
@@ -45,18 +46,18 @@ func NewBot(ctx context.Context, config *Configuration) *Bot {
 	l.Debug("Creating Discord music bot ...")
 
 	bot := &Bot{
-		ctx:                           ctx,
-		Logger:                        l,
-		ready:                         false,
-		service:                       service.NewService(),
-		builder:                       builder.NewBuilder(config.QueueBuilder),
-		datastore:                     datastore.NewDatastore(config.Datastore),
-		youtubeClient:                 youtube.NewYoutubeClient(config.Youtube),
-		config:                        config,
-		audioplayers:                  make(map[string]*audioplayer.AudioPlayer),
-		queueUpdateInteractionsBuffer: make(map[string]chan *discordgo.Interaction),
-		blockedButtons:                make(map[string]map[string]struct{}),
+		ctx:            ctx,
+		Logger:         l,
+		ready:          false,
+		service:        service.NewService(),
+		builder:        builder.NewBuilder(config.QueueBuilder),
+		datastore:      datastore.NewDatastore(config.Datastore),
+		youtubeClient:  youtube.NewYoutubeClient(config.Youtube),
+		config:         config,
+		audioplayers:   audioplayer.NewAudioPlayersMap(),
+		blockedButtons: make(map[string]map[string]struct{}),
 	}
+	bot.queueUpdater = updater.NewQueueUpdater(bot.builder, bot.datastore, bot.audioplayers)
 	l.Info("Discord music bot created")
 	return bot
 }
@@ -187,7 +188,8 @@ func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session, start bool) 
 			}
 		}
 		if err == nil {
-			err = bot.updateQueue(session, queue.GuildID)
+			bot.queueUpdater.NeedsUpdate(queue.GuildID)
+			err = bot.queueUpdater.Update(session, queue.GuildID)
 		}
 		if err != nil {
 			err = bot.datastore.RemoveQueue(
