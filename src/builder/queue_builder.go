@@ -32,7 +32,9 @@ func (builder *Builder) NewQueue(clientID string, guildID string, messageID stri
 // limited by queue's limit and offset, in the second field.
 // It has buttons for all of the available commands and
 // a text input, through which the songs may be added.
-func (builder *Builder) MapQueueToEmbed(queue *model.Queue) *discordgo.MessageEmbed {
+// If the queue has a headSong, the playbackPosition bar will be added
+// to the embed, based on the provided playbackPosition
+func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       builder.Config.Title,
 		Fields:      make([]*discordgo.MessageEmbedField, 0),
@@ -49,13 +51,20 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue) *discordgo.MessageEm
 		// TODO: wrap head song to lines of length 30
 		// TODO: use canvas to shorten song names
 		headSong := builder.WrapName(queue.HeadSong.Name)
-		headSong = fmt.Sprintf(
-			"%s\n**%s**\u3000%s\n%s",
-			spacer,
-			queue.HeadSong.DurationString,
-			headSong,
-			spacer2,
-		)
+		duration := queue.HeadSong.DurationSeconds
+		loader := builder.getPlaybackPositionBar(duration, playbackPosition)
+		if len(loader) == 0 {
+			headSong = fmt.Sprintf(
+				"**%s**\u3000%s\n%s",
+				queue.HeadSong.DurationString, headSong, spacer2,
+			)
+		} else {
+			headSong = fmt.Sprintf(
+				"%s\u3000%s\n%s\n%s%s",
+				spacer, headSong, spacer, spacer, loader,
+			)
+		}
+		headSong = fmt.Sprintf("%s\n%s", spacer, headSong)
 		embed.Fields = append(embed.Fields,
 			&discordgo.MessageEmbedField{
 				Name:  "Now",
@@ -169,4 +178,14 @@ func (builder *Builder) newButton(label string, style discordgo.ButtonStyle, dis
 		Style:    style,
 		Disabled: disabled,
 	}
+}
+
+// getPlaybackPositionBar constructs a playback position bar from the provided
+// duration and position, where duration is the duration of a song in seconds, and position
+// is the audioplayer's current playback position in seconds
+func (builder *Builder) getPlaybackPositionBar(duration int, position int) string {
+	if duration < 3 {
+		return ""
+	}
+	return ""
 }

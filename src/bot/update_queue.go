@@ -41,7 +41,11 @@ func (bot *Bot) updateQueue(s *discordgo.Session, guildID string) error {
 	if err != nil {
 		return err
 	}
-	embed := bot.builder.MapQueueToEmbed(queue)
+	position := 0
+	if ap, ok := bot.audioplayers[guildID]; ok {
+		position = int(ap.PlaybackPosition().Truncate(time.Second))
+	}
+	embed := bot.builder.MapQueueToEmbed(queue, position)
 	components := bot.builder.GetMusicQueueComponents(queue)
 updateLoop:
 	for {

@@ -90,7 +90,7 @@ func (ap *AudioPlayer) Stop() {
 }
 
 // PlaybackPosition returns the duration of the currently playing
-// stream already streamed, rounded to seconds. Returns 0 if nothing
+// stream already streamed. Returns 0 if nothing
 // is playing.
 func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 	if ap.streamingSession == nil {
