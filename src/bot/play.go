@@ -10,18 +10,18 @@ import (
 
 // play searches for a queue that belongs to the provided guildID
 // and starts playing it's headSong if no song is currently playing.
-func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
+func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) error {
 	if len(channelID) == 0 {
-		return
+		return nil
 	}
 	if _, ok := bot.audioplayers.Get(guildID); ok {
 		// NOTE: audio has already been started from
 		// another source, do not continue
 		time.Sleep(300 * time.Millisecond)
 		if _, ok := bot.audioplayers.Get(guildID); ok {
-			return
+			return nil
 		}
-		return
+		return nil
 	}
 
 	bot.WithField("GuildID", guildID).Trace("Play request")
@@ -39,10 +39,10 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 
 	queue, err := bot.datastore.GetQueue(s.State.User.ID, guildID)
 	if err != nil {
-		return
+		return err
 	}
 	if queue.HeadSong == nil {
-		return
+		return nil
 	}
 
 	_, err = s.ChannelVoiceJoin(guildID, channelID, false, false)
@@ -67,7 +67,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 				}
 			}
 		}
-		return
+		return nil
 	}
 
 	// NOTE: always play the queue's headSong,
@@ -85,11 +85,15 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) {
 
 	select {
 	case <-bot.ctx.Done():
-		return
+		return nil
 	default:
+		continuePlaying := ap.Continue
 		bot.audioplayers.Remove(guildID)
-		bot.play(s, guildID, channelID)
+		if continuePlaying {
+			return bot.play(s, guildID, channelID)
+		}
 	}
+	return nil
 }
 
 // audioplayerDefaultDefer is the default function called

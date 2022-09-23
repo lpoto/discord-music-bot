@@ -22,6 +22,7 @@ type AudioPlayer struct {
 	streamingSession *dca.StreamingSession
 	durationSeconds  int
 	stop             bool
+	Continue         bool
 }
 
 type DeferFunctions struct {
@@ -41,6 +42,7 @@ func NewAudioPlayer(session *discordgo.Session, guildID string, funcs *DeferFunc
 		encodingSession:  nil,
 		streamingSession: nil,
 		stop:             false,
+		Continue:         true,
 	}
 }
 
