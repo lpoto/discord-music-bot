@@ -20,6 +20,7 @@ type AudioPlayer struct {
 	funcs            *DeferFunctions
 	encodingSession  *dca.EncodeSession
 	streamingSession *dca.StreamingSession
+	durationSeconds  int
 	stop             bool
 }
 
@@ -99,6 +100,12 @@ func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 	return ap.streamingSession.PlaybackPosition()
 }
 
+// TimeLeft returns the duration before the
+// current stream finishes. 0 if there is no stream.
+func (ap *AudioPlayer) TimeLeft() time.Duration {
+	return time.Duration(ap.durationSeconds*int(time.Second)) - ap.PlaybackPosition()
+}
+
 // AddDeferFunc adds the provided function to the deferFuncBuffer.
 // Functions in this buffer are then called when the player finishes,
 // instead of the default defer func.
@@ -121,6 +128,10 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		ap.funcs.getDeferFunc()(ap.session, ap.guildID)
 		return nil
 	}
+	ap.durationSeconds = song.DurationSeconds
+	defer func() {
+		ap.durationSeconds = 0
+	}()
 
 	voiceConnection.Speaking(true)
 	defer voiceConnection.Speaking(false)

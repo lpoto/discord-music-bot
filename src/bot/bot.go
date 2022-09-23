@@ -9,6 +9,7 @@ import (
 	"discord-music-bot/datastore"
 	"discord-music-bot/model"
 	"discord-music-bot/service"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -113,6 +114,7 @@ func (bot *Bot) Run() {
 		session.Close()
 	}()
 
+	go bot.queueUpdater.RunIntervalUpdater(bot.ctx, session, (time.Second*5))
 	// Run loop until the context is done
 	// All logic is performed by the handlers
 	for {

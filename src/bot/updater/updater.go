@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"golang.org/x/net/context"
 )
 
 type QueueUpdater struct {
@@ -78,17 +79,20 @@ func (updater *QueueUpdater) NeedsUpdate(guildID string) {
 // the queue's channelID and messageID.
 func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error {
 	updater.mutex.Lock()
-	defer updater.mutex.Unlock()
 
 	// NOTE: the queue no longer needs to be updated
 	if _, ok := updater.needUpdate[guildID]; !ok {
+		updater.mutex.Unlock()
 		return nil
 	}
+	updater.mutex.Unlock()
 
 	defer func() {
 		// NOTE: queue has been updated, so it no longer
 		// needs an update
+		updater.mutex.Lock()
 		delete(updater.needUpdate, guildID)
+		updater.mutex.Unlock()
 	}()
 
 	clientID := s.State.User.ID
@@ -104,38 +108,125 @@ func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error 
 	embed := updater.builder.MapQueueToEmbed(queue, position)
 	components := updater.builder.GetMusicQueueComponents(queue)
 
-updateLoop:
-	for {
-		select {
-		case i := <-updater.interactionsBuffer[guildID]:
-			if err := s.InteractionRespond(i, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseUpdateMessage,
-				Data: &discordgo.InteractionResponseData{
-					Embeds:     []*discordgo.MessageEmbed{embed},
-					Components: components,
-				},
-			}); err != nil {
-				continue updateLoop
-			}
-			return nil
-		default:
-			if _, err := s.ChannelMessageEditComplex(
-				&discordgo.MessageEdit{
-					ID:         queue.MessageID,
-					Channel:    queue.ChannelID,
-					Embeds:     []*discordgo.MessageEmbed{embed},
-					Components: components,
-				}); err != nil {
-				return err
-			} else {
-				return nil
+	err = nil
+
+	updater.mutex.Lock()
+	buffer, ok := updater.interactionsBuffer[guildID]
+	updater.mutex.Unlock()
+
+	if !ok {
+
+		_, err = s.ChannelMessageEditComplex(
+			&discordgo.MessageEdit{
+				ID:         queue.MessageID,
+				Channel:    queue.ChannelID,
+				Embeds:     []*discordgo.MessageEmbed{embed},
+				Components: components,
+			})
+	} else {
+
+	updateLoop:
+		for {
+			select {
+			case i := <-buffer:
+				err = s.InteractionRespond(i, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseUpdateMessage,
+					Data: &discordgo.InteractionResponseData{
+						Embeds:     []*discordgo.MessageEmbed{embed},
+						Components: components,
+					},
+				})
+				if err != nil {
+					continue updateLoop
+				}
+				break updateLoop
+			default:
+				_, err = s.ChannelMessageEditComplex(
+					&discordgo.MessageEdit{
+						ID:         queue.MessageID,
+						Channel:    queue.ChannelID,
+						Embeds:     []*discordgo.MessageEmbed{embed},
+						Components: components,
+					})
+				break updateLoop
 			}
 		}
 	}
+	if err != nil {
+		updater.mutex.Lock()
+		updater.lastUpdated[guildID] = time.Now()
+		updater.mutex.Unlock()
+	}
+	return err
 }
 
 // GetInteractionsBuffer returns the interaction buffer for the provided guildID
 func (updater *QueueUpdater) GetInteractionsBuffer(guildID string) (chan *discordgo.Interaction, bool) {
 	b, ok := updater.interactionsBuffer[guildID]
 	return b, ok
+}
+
+// RunIntervalUpdater is a long lived worker that updated all the queues at the provided
+// interval. Only queues with active audioplayers are updated.
+// If a queue was updated less than the interval ago, it is not updated again.
+func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *discordgo.Session, interval time.Duration) {
+	done := ctx.Done()
+
+	ticker := time.NewTicker(interval)
+
+	skip := make(map[string]struct{})
+	skipMutex := sync.Mutex{}
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			for _, guildID := range updater.audioplayers.Keys() {
+				// NOTE: for each guildID that has an audioplayer
+				// check if the queue belonging to the guildiD should be updated
+				go func(guildID string) {
+					// NOTE: if guildID is in skip, don't update
+					skipMutex.Lock()
+					if _, ok := skip[guildID]; ok {
+						delete(skip, guildID)
+						skipMutex.Unlock()
+						return
+					}
+					skipMutex.Unlock()
+					if ap, ok := updater.audioplayers.Get(
+						guildID,
+					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second/2) < interval {
+						return
+					}
+					updater.mutex.Lock()
+					if t, ok := updater.lastUpdated[guildID]; ok {
+						if time.Since(t) < interval {
+							updater.mutex.Unlock()
+							return
+						}
+					}
+					updater.mutex.Unlock()
+
+					skipMutex.Lock()
+					// NOTE: add guildiD to skip
+					// if the update was fast, remove it,
+					// else the discord is blocking us on the message,
+					// so we leave it in the skip, and we skip an update
+					// on that message and relieve the discord's limit
+					skip[guildID] = struct{}{}
+					skipMutex.Unlock()
+					updater.NeedsUpdate(guildID)
+					t := time.Now()
+					updater.Update(session, guildID)
+
+					if time.Since(t) < time.Second {
+						skipMutex.Lock()
+						delete(skip, guildID)
+						skipMutex.Unlock()
+					}
+				}(guildID)
+			}
+		}
+	}
 }
