@@ -176,6 +176,8 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	options.Bitrate = 96
 	options.Application = "lowdelay"
 
+	// TODO: options.AudioFilter = "maybe add some epic filters"
+
 	err = nil
 	f := ap.funcs.onFailure
 

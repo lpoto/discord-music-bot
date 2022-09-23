@@ -18,7 +18,7 @@ func (bot *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		"Username": r.User.Username + " #" + r.User.Discriminator,
 	}).Info("Bot ready")
 
-    // NOTE: mark the bot as ready, so the
-    // other handlers start working
+	// NOTE: mark the bot as ready, so the
+	// other handlers start working
 	bot.ready = true
 }

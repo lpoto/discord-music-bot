@@ -28,6 +28,9 @@ MusicBot:
       AddSongs: "Add"
       Join: "Join"
       Offline: "The bot is currently offline"
+  Updater:
+    Interval: 5s # do not set under 5s
+    MaxAloneTime: 2m # time after the bot leaves, if it's alone in the channel
   Youtube:
     LogLevel: DEBUG
     MaxParallelQueries: 100

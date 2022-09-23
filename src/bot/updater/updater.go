@@ -22,6 +22,11 @@ type QueueUpdater struct {
 	audioplayers       *audioplayer.AudioPlayersMap
 }
 
+type Configuration struct {
+	Interval     time.Duration `yaml:"Interval" validate:"required"`
+	MaxAloneTime time.Duration `yaml:"MaxAloneTime" validate:"required"`
+}
+
 // NewQueueUpdater constructs a new object that
 // handles updating queues
 func NewQueueUpdater(builder *builder.Builder, datastore *datastore.Datastore, audioplayers *audioplayer.AudioPlayersMap) *QueueUpdater {
@@ -171,18 +176,16 @@ func (updater *QueueUpdater) GetInteractionsBuffer(guildID string) (chan *discor
 // interval. Only queues with active audioplayers are updated.
 // If a queue was updated less than the interval ago, it is not updated again.
 // If a queue had no listeners for some time, the queue is marked inactive and the music stops.
-func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *discordgo.Session, interval time.Duration) {
+func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *discordgo.Session, config *Configuration) {
 	done := ctx.Done()
 
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(config.Interval)
 
 	skip := make(map[string]struct{})
 	skipMutex := sync.Mutex{}
 
 	inactive := make(map[string]time.Time)
 	inactiveMutex := sync.Mutex{}
-
-	maxInactiveDuration := 2 * time.Minute
 
 	for {
 		select {
@@ -201,7 +204,7 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 
 					// NOTE: the bot has been alone in the channel
 					// for too long, mark the queue inactive and dc
-					if ok && time.Since(inactiveSince) >= maxInactiveDuration {
+					if ok && time.Since(inactiveSince) >= config.MaxAloneTime {
 						skipMutex.Lock()
 						// NOTE: if inactive, remove the guildID from skip
 						// aswell, so we don't skip immediately when the
@@ -249,12 +252,12 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 					skipMutex.Unlock()
 					if ap, ok := updater.audioplayers.Get(
 						guildID,
-					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second) < interval {
+					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second) < config.Interval {
 						return
 					}
 					updater.mutex.Lock()
 					if t, ok := updater.lastUpdated[guildID]; ok {
-						if time.Since(t) < interval {
+						if time.Since(t) < config.Interval {
 							updater.mutex.Unlock()
 							return
 						}
