@@ -27,6 +27,7 @@ MusicBot:
       Loop: "Loop"
       AddSongs: "Add"
       Join: "Join"
+      Offline: "The bot is currently offline"
   Youtube:
     LogLevel: DEBUG
     MaxParallelQueries: 100
