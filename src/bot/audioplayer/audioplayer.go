@@ -22,6 +22,7 @@ type AudioPlayer struct {
 	streamingSession *dca.StreamingSession
 	durationSeconds  int
 	stop             bool
+	Continue         bool
 }
 
 type DeferFunctions struct {
@@ -41,6 +42,7 @@ func NewAudioPlayer(session *discordgo.Session, guildID string, funcs *DeferFunc
 		encodingSession:  nil,
 		streamingSession: nil,
 		stop:             false,
+		Continue:         true,
 	}
 }
 
@@ -173,6 +175,8 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	options.RawOutput = true
 	options.Bitrate = 96
 	options.Application = "lowdelay"
+
+	// TODO: options.AudioFilter = "maybe add some epic filters"
 
 	err = nil
 	f := ap.funcs.onFailure

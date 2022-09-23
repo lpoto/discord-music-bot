@@ -20,8 +20,8 @@ RUN adduser -D -g '' appuser
 ADD ./src /app
 WORKDIR /app
 
-# Build the binary, add CGO_FLAGS to avoid gcc errors
-RUN CGO_CFLAGS="-w -Os" GOOS=linux go build -a -installsuffix cgo -o /go/bin/music_bot .
+# Build the binary
+RUN GOOS=linux go build -ldflags="-w -s" -a -o /go/bin/music_bot .
 
 
 FROM opencoconut/ffmpeg

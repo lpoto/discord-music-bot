@@ -31,9 +31,9 @@ export POSTGRES_PASSWORD=postgres
 ```
 3. Run the bot:
 ```bash
-cd src
+cd ./src
 
-CGO_CLAGS="-w -Os" go run .
+go run .
 ```
 
 ## Building the image

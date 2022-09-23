@@ -9,7 +9,6 @@ import (
 	"discord-music-bot/datastore"
 	"discord-music-bot/model"
 	"discord-music-bot/service"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -37,6 +36,7 @@ type Configuration struct {
 	SlashCommands *SlashCommandsConfig     `yaml:"SlashCommands" validate:"required"`
 	Modals        *ModalsConfig            `yaml:"Modals"`
 	Youtube       *youtube.Configuration   `yaml:"Youtube" validate:"required"`
+	Updater       *updater.Configuration   `yaml:"Updater" validate:"required"`
 }
 
 // NewBot constructs an object that connects the logic in the
@@ -114,7 +114,7 @@ func (bot *Bot) Run() {
 		session.Close()
 	}()
 
-	go bot.queueUpdater.RunIntervalUpdater(bot.ctx, session, (time.Second*5))
+	go bot.queueUpdater.RunIntervalUpdater(bot.ctx, session, bot.config.Updater)
 	// Run loop until the context is done
 	// All logic is performed by the handlers
 	for {

@@ -4,6 +4,7 @@ import (
 	"discord-music-bot/bot/audioplayer"
 	"discord-music-bot/builder"
 	"discord-music-bot/datastore"
+	"discord-music-bot/model"
 	"sync"
 	"time"
 
@@ -19,6 +20,11 @@ type QueueUpdater struct {
 	builder            *builder.Builder
 	datastore          *datastore.Datastore
 	audioplayers       *audioplayer.AudioPlayersMap
+}
+
+type Configuration struct {
+	Interval     time.Duration `yaml:"Interval" validate:"required"`
+	MaxAloneTime time.Duration `yaml:"MaxAloneTime" validate:"required"`
 }
 
 // NewQueueUpdater constructs a new object that
@@ -169,23 +175,73 @@ func (updater *QueueUpdater) GetInteractionsBuffer(guildID string) (chan *discor
 // RunIntervalUpdater is a long lived worker that updated all the queues at the provided
 // interval. Only queues with active audioplayers are updated.
 // If a queue was updated less than the interval ago, it is not updated again.
-func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *discordgo.Session, interval time.Duration) {
+// If a queue had no listeners for some time, the queue is marked inactive and the music stops.
+func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *discordgo.Session, config *Configuration) {
 	done := ctx.Done()
 
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(config.Interval)
 
 	skip := make(map[string]struct{})
 	skipMutex := sync.Mutex{}
+
+	inactive := make(map[string]time.Time)
+	inactiveMutex := sync.Mutex{}
 
 	for {
 		select {
 		case <-done:
 			return
 		case <-ticker.C:
+			// NOTE: for each guildID that has an audioplayer
+			// check if the queue belonging to the guildiD should be updated
+			// Also check if there are no undefened listeners in that channel.
+			// If there aren't any for some time, dc the bot.
 			for _, guildID := range updater.audioplayers.Keys() {
-				// NOTE: for each guildID that has an audioplayer
-				// check if the queue belonging to the guildiD should be updated
 				go func(guildID string) {
+					inactiveMutex.Lock()
+					inactiveSince, ok := inactive[guildID]
+					inactiveMutex.Unlock()
+
+					// NOTE: the bot has been alone in the channel
+					// for too long, mark the queue inactive and dc
+					if ok && time.Since(inactiveSince) >= config.MaxAloneTime {
+						skipMutex.Lock()
+						// NOTE: if inactive, remove the guildID from skip
+						// aswell, so we don't skip immediately when the
+						// bot is active in that guild again
+						delete(skip, guildID)
+						skipMutex.Unlock()
+						inactiveMutex.Lock()
+						delete(inactive, guildID)
+						inactiveMutex.Unlock()
+						updater.markQueueInactive(session, guildID)
+						return
+					}
+
+					go func(guildID string) {
+						// NOTE: check if the bot has no listeners
+						// if so, if no already set, set the
+						// inactive time, so we now how long the bot has been inactive
+						if updater.hasNoListeners(
+							ctx, session, guildID,
+						) {
+							inactiveMutex.Lock()
+							// NOTE: only set time.Now if it is
+							// not set already, so we don't override
+							// the previous set
+							if _, ok := inactive[guildID]; !ok {
+								inactive[guildID] = time.Now()
+							}
+							inactiveMutex.Unlock()
+						} else {
+							// NOTE: if there are listeners, remove
+							// the inactive time
+							inactiveMutex.Lock()
+							delete(inactive, guildID)
+							inactiveMutex.Unlock()
+						}
+					}(guildID)
+
 					// NOTE: if guildID is in skip, don't update
 					skipMutex.Lock()
 					if _, ok := skip[guildID]; ok {
@@ -196,12 +252,12 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 					skipMutex.Unlock()
 					if ap, ok := updater.audioplayers.Get(
 						guildID,
-					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second) < interval {
+					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second) < config.Interval {
 						return
 					}
 					updater.mutex.Lock()
 					if t, ok := updater.lastUpdated[guildID]; ok {
-						if time.Since(t) < interval {
+						if time.Since(t) < config.Interval {
 							updater.mutex.Unlock()
 							return
 						}
@@ -229,4 +285,74 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 			}
 		}
 	}
+}
+
+// markQueueInactive persists inactive option to the queue identified
+// by the provided guildID and session's clientID, removes it's pause option
+// and disconects the client from the voiceChannel in the guild identified
+// by the provided guildID
+func (updater *QueueUpdater) markQueueInactive(s *discordgo.Session, guildID string) {
+	updater.datastore.RemoveQueueOptions(
+		s.State.User.ID,
+		guildID,
+		model.Paused,
+	)
+	updater.datastore.PersistQueueOptions(
+		s.State.User.ID,
+		guildID,
+		model.InactiveOption(),
+	)
+	if ap, ok := updater.audioplayers.Get(guildID); ok {
+		ap.AddDeferFunc(func(*discordgo.Session, string) {})
+		ap.Continue = false
+		ap.Stop()
+	}
+	updater.NeedsUpdate(guildID)
+	updater.Update(s, guildID)
+
+	if vc, ok := s.VoiceConnections[guildID]; ok {
+		vc.Disconnect()
+	}
+}
+
+// hasNoListeners checks whethere there are no undefened members
+// in the same channel as the client
+func (updater *QueueUpdater) hasNoListeners(ctx context.Context, s *discordgo.Session, guildID string) bool {
+	clientState, err := s.State.VoiceState(guildID, s.State.User.ID)
+	if err != nil {
+		return true
+	}
+	maxMembersFetch := 1000
+	done := ctx.Done()
+	after := ""
+outerMemberLoop:
+	for i := 0; i < 100; i++ {
+		members, err := s.GuildMembers(guildID, after, maxMembersFetch)
+		if err != nil {
+			return true
+		}
+	innerMemberLoop:
+		for _, m := range members {
+			select {
+			case <-done:
+				return true
+			default:
+				if m.User.ID == s.State.User.ID {
+					continue innerMemberLoop
+				}
+				memberState, err := s.State.VoiceState(guildID, m.User.ID)
+				if err != nil {
+					continue innerMemberLoop
+				}
+				if memberState.ChannelID == clientState.ChannelID &&
+					!memberState.Deaf && !memberState.SelfDeaf {
+					return false
+				}
+			}
+		}
+		if len(members) < maxMembersFetch {
+			break outerMemberLoop
+		}
+	}
+	return true
 }
