@@ -3,34 +3,24 @@ package audioplayer
 import (
 	"context"
 	"discord-music-bot/model"
-	"encoding/binary"
 	"errors"
 	"io"
-	"net/http"
-	"os/exec"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/jonas747/dca"
 	"github.com/kkdai/youtube/v2"
 )
 
-type Configuration struct {
-	Channels  int `yaml:"Channels" validate:"gt=0"`
-	FrameRate int `yaml:"FrameRate" validate:"gt=0"`
-	FrameSize int `yaml:"FrameSize" validate:"gt=0"`
-	Retry     int `yaml:"Retry" validate:"gte=0"`
-}
-
 type AudioPlayer struct {
-	config  *Configuration
-	guildID string
-	session *discordgo.Session
-	client  *youtube.Client
-	funcs   *DeferFunctions
-	pcm     *PCM
-	stop    bool
-	pause   bool
+	guildID          string
+	session          *discordgo.Session
+	client           *youtube.Client
+	funcs            *DeferFunctions
+	encodingSession  *dca.EncodeSession
+	streamingSession *dca.StreamingSession
+	stop             bool
 }
 
 type DeferFunctions struct {
@@ -41,16 +31,15 @@ type DeferFunctions struct {
 
 // NewAudioPlayer constructs an object that handles playing
 // audio in a discord's voice channel
-func NewAudioPlayer(session *discordgo.Session, guildID string, config *Configuration, funcs *DeferFunctions) *AudioPlayer {
+func NewAudioPlayer(session *discordgo.Session, guildID string, funcs *DeferFunctions) *AudioPlayer {
 	return &AudioPlayer{
-		config:  config,
-		client:  &youtube.Client{},
-		guildID: guildID,
-		session: session,
-		funcs:   funcs,
-		pcm:     nil,
-		stop:    false,
-		pause:   false,
+		client:           &youtube.Client{},
+		guildID:          guildID,
+		session:          session,
+		funcs:            funcs,
+		encodingSession:  nil,
+		streamingSession: nil,
+		stop:             false,
 	}
 }
 
@@ -66,106 +55,48 @@ func NewDeferFunctions(success func(*discordgo.Session, string), err func(*disco
 	}
 }
 
-// Play starts playing the provided song in the bot's
-// current voice channel. Returns error if the bot is not connected.
-func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
-	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
-	if !ok {
-		return errors.New("Not connected to voice")
-	}
-
-	voiceConnection.Speaking(true)
-
-	ctx, cancel := context.WithCancel(ctx)
-
-	pcmChannel := make(chan []int16, 2)
-
-	ap.pcm = NewPCM(ap.config, pcmChannel, voiceConnection)
-	go ap.pcm.Run(ctx)
-
-	defer func() {
-		ap.pcm = nil
-		cancel()
-		voiceConnection.Speaking(false)
-	}()
-
-	body, err := ap.getStreamBody(song.Url)
-
-	if err != nil {
-		ap.funcs.onFailure(ap.session, ap.guildID)
-		return err
-	}
-	defer body.Close()
-
-	var streamAudio func(int) error
-
-	streamAudio = func(retry int) error {
-		if ap.stop {
-			ap.funcs.getDeferFunc()(ap.session, ap.guildID)
-			return nil
-		}
-		if retry >= 3 {
-			ap.funcs.onFailure(ap.session, ap.guildID)
-			return nil
-		}
-		stdout, err := ap.runFFmpegCommand(body)
-		if err != nil {
-			ap.funcs.onFailure(ap.session, ap.guildID)
-			return err
-		}
-
-		done := ctx.Done()
-
-		// buffer used during loop below
-		audiobuf := make([]int16, ap.config.FrameSize*ap.config.Channels)
-	streamLoop:
-		for {
-			select {
-			case <-done:
-				return nil
-			default:
-				if ap.stop {
-					ap.funcs.getDeferFunc()(ap.session, ap.guildID)
-					return nil
-				}
-				if ap.pause {
-					continue streamLoop
-				}
-				// read data from ffmpeg stdout
-				err = binary.Read(stdout, binary.LittleEndian, &audiobuf)
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					ap.funcs.getDeferFunc()(ap.session, ap.guildID)
-					return nil
-				}
-				if err != nil {
-					return streamAudio(retry + 1)
-				}
-				pcmChannel <- audiobuf
-			}
-		}
-	}
-	return streamAudio(0)
-}
-
-// Pause pauses the currently streaming session if any
+// Pause pauses the current stream if there is any
 func (ap *AudioPlayer) Pause() {
-	ap.pause = true
+	if ap.streamingSession == nil {
+		return
+	}
+	ap.streamingSession.SetPaused(true)
 }
 
-// Pause unpauses the currently streaming session if any
+// Pause resumes the current stream if there is any
 func (ap *AudioPlayer) Unpause() {
-	ap.pause = false
+	if ap.streamingSession == nil {
+		return
+	}
+	ap.streamingSession.SetPaused(false)
 }
 
 // IsPaused returns true if the audioplayer is currenthly
 // paused, false otherwise
 func (ap *AudioPlayer) IsPaused() bool {
-	return ap.pause
+	if ap.streamingSession == nil {
+		return false
+	}
+	return ap.streamingSession.Paused()
 }
 
 // Stop stops the current stream, if there is any
 func (ap *AudioPlayer) Stop() {
+	if ap.encodingSession == nil {
+		return
+	}
+	ap.encodingSession.Stop()
 	ap.stop = true
+}
+
+// PlaybackPosition returns the duration of the currently playing
+// stream already streamed, rounded to seconds. Returns 0 if nothing
+// is playing.
+func (ap *AudioPlayer) PlaybackPosition() time.Duration {
+	if ap.streamingSession == nil {
+		return 0
+	}
+	return ap.streamingSession.PlaybackPosition()
 }
 
 // AddDeferFunc adds the provided function to the deferFuncBuffer.
@@ -178,64 +109,163 @@ func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
 	}
 }
 
-// PlaybackPosition returns the duration of the currently playing
-// stream already streamed, rounded to seconds. Returns 0 if nothing
-// is playing.
-func (ap *AudioPlayer) PlaybackPosition() time.Duration {
-	return 0
+// Play starts playing the provided song in the bot's
+// current voice channel. Returns error if the bot is not connected.
+func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
+	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
+	if !ok {
+		return errors.New("Not connected to voice")
+	}
+
+	voiceConnection.Speaking(true)
+	defer voiceConnection.Speaking(false)
+
+	// NOTE: try to get the best audio opus format for
+	// the youtube video belonging to the song's url,
+	// then pass the video's stream url to dca
+	// (it then encodes it with FFMPEG and sends it to discord)
+	streamUrl := ""
+	var err error
+	var format *youtube.Format = nil
+	var video *youtube.Video = nil
+
+	// NOTE: try fetching the format 2 times, in case something
+	// went wrong
+	for i := 0; i < 3; i++ {
+		if ap.stop {
+			return nil
+		}
+		video, format, err = ap.getStreamFormat(song.Url)
+		if err == nil {
+			streamUrl, err = ap.client.GetStreamURL(video, format)
+		}
+	}
+	if err != nil {
+		ap.funcs.onFailure(ap.session, ap.guildID)
+		return err
+	}
+	options := dca.StdEncodeOptions
+	options.RawOutput = true
+	options.Bitrate = 96
+	options.Application = "lowdelay"
+
+	err = nil
+
+streamingLoop:
+	// NOTE: try to run the stream 3 times in case
+	// something went wrong with encoding and the stream finished
+	// with an error in less than a second
+	for i := 0; i < 3; i++ {
+		if ap.stop {
+			ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+			return nil
+		}
+
+		ap.encodingSession, err = dca.EncodeFile(streamUrl, options)
+		if err != nil {
+			ap.funcs.onFailure(ap.session, ap.guildID)
+			continue streamingLoop
+		}
+		defer func() {
+			ap.encodingSession.Cleanup()
+			ap.encodingSession = nil
+			ap.streamingSession = nil
+		}()
+
+		done := ctx.Done()
+
+		streamDone := make(chan error)
+		ap.streamingSession = dca.NewStream(
+			ap.encodingSession,
+			voiceConnection,
+			streamDone,
+		)
+
+		t := time.Now()
+
+		for {
+			select {
+			case <-done:
+				return nil
+			case err = <-streamDone:
+				// NOTE: the stream finished, if it lasted
+				// less than a second, retry it
+				if time.Since(t) < time.Second {
+					continue streamingLoop
+				}
+				if err != nil && err != io.EOF {
+					break streamingLoop
+				}
+				// NOTE: the stream finished successfully
+				ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+				return nil
+			default:
+				if ap.stop {
+					ap.funcs.getDeferFunc()(ap.session, ap.guildID)
+					return nil
+				}
+			}
+		}
+	}
+	// NOTE: when streaming is successful, the inner loop returns
+	ap.funcs.onFailure(ap.session, ap.guildID)
+	return err
 }
 
-// getStreamBody gets the stream url from youtube from
-// the provided url, then calls a http request and fetches the body
-// for the stream
-func (ap *AudioPlayer) getStreamBody(url string) (io.ReadCloser, error) {
+// getStreamFormat gets the youtube video belonging to the provided
+// url and returns it's format that best fits the music bot.
+// This tries to return the format with audio mimetype, opus codec, high audio
+// quality and low video quality.
+func (ap *AudioPlayer) getStreamFormat(url string) (*youtube.Video, *youtube.Format, error) {
 	video, err := ap.client.GetVideo(url)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var f func(int) (io.ReadCloser, error)
-
-	f = func(retries int) (io.ReadCloser, error) {
-		if retries > 2 {
-			return nil, errors.New("Status code != 200")
+	// NOTE: filter the formats, so we get the smallest video
+	// with best audio quality
+	formats := video.Formats
+	if formats2 := formats.WithAudioChannels(); len(formats2) > 0 {
+		formats = formats2
+	}
+	// NOTE: try to get audio formats with opus codecs
+	formats2 := make(youtube.FormatList, 0)
+	for _, f := range formats {
+		t := f.MimeType
+		if strings.Contains(t, "opus") && strings.Contains(t, "audio") {
+			formats2 = append(formats2, f)
 		}
-		formats := video.Formats.WithAudioChannels()
-		url, err = ap.client.GetStreamURL(video, &formats[0])
-		resp, err := http.Get(url)
-		if err != nil {
-			return nil, err
+	}
+	formats = formats2
+	// NOTE: try to get the best possible audio quality
+	formats2 = make(youtube.FormatList, 0)
+	for _, f := range formats {
+		if f.AudioQuality == "AUDIO_QUALITY_HIGH" {
+			formats2 = append(formats2, f)
 		}
-		if resp.StatusCode != 200 {
-			resp.Body.Close()
-			return f(retries + 1)
+	}
+	if len(formats2) == 0 {
+		for _, f := range formats {
+			if f.AudioQuality == "AUDIO_QUALITY_MEDIUM" {
+				formats2 = append(formats2, f)
+			}
 		}
-		return resp.Body, nil
 	}
-	return f(0)
-}
-
-// runFFmpegCommand runs ffmpeg with the provided body
-// and the audio player's configuration
-func (ap *AudioPlayer) runFFmpegCommand(body io.ReadCloser) (io.ReadCloser, error) {
-	run := exec.Command(
-		"ffmpeg",
-		"-i", "-", "-f", "s16le", "-ar",
-		strconv.Itoa(ap.config.FrameRate), "-ac",
-		strconv.Itoa(ap.config.Channels), "pipe:1",
-	)
-	run.Stdin = body
-	stdout, err := run.StdoutPipe()
-	if err != nil {
-		ap.funcs.onFailure(ap.session, ap.guildID)
-		return nil, err
+	if len(formats2) > 0 {
+		formats = formats2
 	}
-	err = run.Start()
-	if err != nil {
-		ap.funcs.onFailure(ap.session, ap.guildID)
-		return nil, err
+	// NOTE: try to get the smallest possible video size
+	// as video quality is unimportant
+	if formats2 := formats.Quality("tiny"); len(formats2) > 0 {
+		formats = formats2
+	} else if formats2 := formats.Quality("small"); len(formats2) > 0 {
+		formats = formats2
+	} else if formats2 := formats.Quality("medium"); len(formats2) > 0 {
+		formats = formats2
 	}
-	return stdout, nil
-
+	if len(formats) == 0 {
+		return nil, nil, errors.New("No formats found")
+	}
+	return video, &formats[0], nil
 }
 
 // getDefferFunc returns the function that should be called when the

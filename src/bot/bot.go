@@ -28,14 +28,13 @@ type Bot struct {
 }
 
 type Configuration struct {
-	LogLevel      log.Level                  `yaml:"LogLevel" validate:"required"`
-	DiscordToken  string                     `yaml:"DiscordToken" validate:"required"`
-	Datastore     *datastore.Configuration   `yaml:"Datastore" validate:"required"`
-	QueueBuilder  *builder.Configuration     `yaml:"QueueBuilder" validate:"required"`
-	SlashCommands *SlashCommandsConfig       `yaml:"SlashCommands" validate:"required"`
-	Modals        *ModalsConfig              `yaml:"Modals"`
-	AudioPlayer   *audioplayer.Configuration `yaml:"AudioPlayer" validate:"required"`
-	Youtube       *youtube.Configuration     `yaml:"Youtube" validate:"required"`
+	LogLevel      log.Level                `yaml:"LogLevel" validate:"required"`
+	DiscordToken  string                   `yaml:"DiscordToken" validate:"required"`
+	Datastore     *datastore.Configuration `yaml:"Datastore" validate:"required"`
+	QueueBuilder  *builder.Configuration   `yaml:"QueueBuilder" validate:"required"`
+	SlashCommands *SlashCommandsConfig     `yaml:"SlashCommands" validate:"required"`
+	Modals        *ModalsConfig            `yaml:"Modals"`
+	Youtube       *youtube.Configuration   `yaml:"Youtube" validate:"required"`
 }
 
 // NewBot constructs an object that connects the logic in the
@@ -105,10 +104,10 @@ func (bot *Bot) Run() {
 	}
 
 	// check if any queues should be removed from datastore
-	bot.cleanDiscordMusicQueues(session)
+	bot.cleanDiscordMusicQueues(session, true)
 
 	defer func() {
-		bot.cleanDiscordMusicQueues(session)
+		bot.cleanDiscordMusicQueues(session, false)
 		bot.Info("Closing discord session ... ")
 		session.Close()
 	}()
@@ -149,7 +148,9 @@ func (bot *Bot) setHandlers(session *discordgo.Session) {
 // cleanDiscordMusicQueues removes all queue messages from datastore,
 // for which the messages not longer exist in the discord channels.
 // For those that exist, it marks them as paused
-func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
+// If start is true, inactive option is added to all the queues,
+// else the offline option is added
+func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session, start bool) {
 	bot.Debug("Cleaning up discord music queues ...")
 
 	queues, err := bot.datastore.FindAllQueues()
@@ -164,13 +165,26 @@ func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
 			queue.ClientID,
 			queue.GuildID,
 			model.Paused,
+			model.Offline,
 		)
 		if err == nil {
-			err = bot.datastore.PersistQueueOptions(
-				queue.ClientID,
-				queue.GuildID,
-				model.InactiveOption(),
-			)
+			if start {
+				err = bot.datastore.PersistQueueOptions(
+					queue.ClientID,
+					queue.GuildID,
+					model.InactiveOption(),
+				)
+			} else {
+				// NOTE: if start is false, add offline option
+				// so the queues will have offline button added
+				// until is comes back online
+				err = bot.datastore.PersistQueueOptions(
+					queue.ClientID,
+					queue.GuildID,
+					model.OfflineOption(),
+				)
+
+			}
 		}
 		if err == nil {
 			err = bot.updateQueue(session, queue.GuildID)

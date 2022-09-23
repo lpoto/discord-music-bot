@@ -95,6 +95,15 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue) *discordgo.MessageEm
 // that belong to the provided queue, they may vary based on
 // the queue's options
 func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.MessageComponent {
+	if builder.QueueHasOption(queue, model.Offline) {
+		return []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					builder.newButton(builder.Config.Components.Offline, discordgo.SecondaryButton, true),
+				},
+			},
+		}
+	}
 	if builder.QueueHasOption(queue, model.Inactive) {
 		return []discordgo.MessageComponent{
 			discordgo.ActionsRow{

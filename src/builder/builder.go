@@ -21,6 +21,7 @@ type ComponentsConfig struct {
 	AddSongs string `yaml:"AddSongs" validate:"required"`
 	Loop     string `yaml:"Loop" validate:"required"`
 	Join     string `yaml:"Join" validate:"required"`
+	Offline     string `yaml:"Offline" validate:"required"`
 }
 
 // NewBuilder constructs an object that handles building

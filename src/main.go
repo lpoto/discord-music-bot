@@ -5,11 +5,14 @@ import (
 	"discord-music-bot/bot"
 	"discord-music-bot/config"
 	"flag"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	defaultLog "log"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -44,6 +47,9 @@ func loadConfig(configFiles []string) *Configuration {
 }
 
 func main() {
+	// NOTE: allow only logging with logrus
+	defaultLog.SetOutput(ioutil.Discard)
+
 	configFileParam := flag.String(
 		"configFiles",
 		"config.yaml",
