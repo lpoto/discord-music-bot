@@ -7,8 +7,9 @@ A simple, easy to use discord bot, intended for playing youtube songs.
 
 ### Prerequisites
 
-1. Create the file `./src/config.yaml` and copy the contents from [./src/config.example.yaml](./src/config.example.yaml)
+1. Create the file `./src/config.yaml` and copy the contents from [./conf/config.example.yaml](./conf/config.example.yaml)
 2. Replace `DiscordToken` value with your [discord bot token](#creating-a-discord-bot-token)
+3. Update [help.txt](./conf/help.txt) if necessary.
 
 ### Running the bot inside a docker container:
 ```bash
