@@ -13,7 +13,7 @@ func (bot *Bot) onMessageDelete(s *discordgo.Session, m *discordgo.MessageDelete
 	}
 	bot.WithField("GuildID", m.GuildID).Trace("Message deleted")
 
-	bot.deleteQueue(s.State.User.ID, m.GuildID, []string{m.ID})
+	bot.deleteQueue(s, m.GuildID, []string{m.ID})
 }
 
 // onBulkMessageDelete is a handler function called when discord emits
@@ -23,10 +23,12 @@ func (bot *Bot) onBulkMessageDelete(s *discordgo.Session, m *discordgo.MessageDe
 	if m.GuildID == "" || !bot.ready {
 		return
 	}
-	bot.deleteQueue(s.State.User.ID, m.GuildID, m.Messages)
+	bot.deleteQueue(s, m.GuildID, m.Messages)
 }
 
-func (bot *Bot) deleteQueue(clientID string, guildID string, messageIDs []string) {
+func (bot *Bot) deleteQueue(s *discordgo.Session, guildID string, messageIDs []string) {
+	clientID := s.State.User.ID
+
 	queue, err := bot.datastore.FindQueue(
 		clientID,
 		guildID,
@@ -46,6 +48,14 @@ func (bot *Bot) deleteQueue(clientID string, guildID string, messageIDs []string
 		return
 	}
 	bot.Trace("The queue message was deleted, removing the queue")
+	if ap, ok := bot.audioplayers.Get(guildID); ok {
+		ap.Continue = false
+		ap.Stop()
+	}
+	if vc, ok := s.VoiceConnections[guildID]; ok {
+		vc.Disconnect()
+	}
+
 	if err := bot.datastore.RemoveQueue(
 		clientID,
 		queue.GuildID,
