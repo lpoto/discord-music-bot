@@ -1,0 +1,24 @@
+**Discord Music Bot**
+
+**1.** Use `/music` to start a new muisc queue in the channel.
+    - Only a single queue may be active in a single discord server.
+
+**2.** Add songs by clicking the `Add` button, or using `/music` again.
+    - Multiple songs may be added at a time, by typing them each in their own line.
+    - Either the name or the url to a Youtube song may be typed to add the desired song.
+
+**3.** The queue displays up to 10 songs at once, navigate the queue with `<` and `>` buttons.
+
+**4.** To skip a song, press `>>`, to go back to the previous song, click `<<`.
+
+**5.** To pause the song, click the `||` button.
+
+**6.** To replay the currently playing song from the start, press `↺`
+
+**5.** To enable loop, click on `Loop`.
+    - When loop is enabled, songs are not removed from the queue but rather pushed to the back of the queue.
+
+**6.** Bot will leave the channel after being alone for 2 minutes.
+    - The queue won't be deleted, click on `Join` and the bot will start playing again.
+
+**7.** Bot will disconnect if the queue message is deleted.

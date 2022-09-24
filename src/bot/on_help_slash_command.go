@@ -8,10 +8,14 @@ import "github.com/bwmarrin/discordgo"
 // the interaction's command data name matches the help slash command's name.
 func (bot *Bot) onHelpSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Help slash command")
+	help := bot.helpContent
+	if len(help) == 0 {
+		help = "Sorry, there is currently no help available."
+	}
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: bot.help(),
+			Content: help,
 			Flags:   1 << 6, // 1 << 6 flags marks the response ephemeral
 		},
 	}); err != nil {
@@ -20,8 +24,4 @@ func (bot *Bot) onHelpSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 			err,
 		)
 	}
-}
-
-func (bot *Bot) help() string {
-	return "There is currently no help available :("
 }

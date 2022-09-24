@@ -26,6 +26,7 @@ type Bot struct {
 	queueUpdater   *updater.QueueUpdater
 	blockedButtons map[string]map[string]struct{}
 	config         *Configuration
+	helpContent    string
 }
 
 type Configuration struct {
@@ -41,7 +42,7 @@ type Configuration struct {
 
 // NewBot constructs an object that connects the logic in the
 // service module with the discord api and the datastore.
-func NewBot(ctx context.Context, config *Configuration) *Bot {
+func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 	l := log.New()
 	l.SetLevel(config.LogLevel)
 	l.Debug("Creating Discord music bot ...")
@@ -57,6 +58,7 @@ func NewBot(ctx context.Context, config *Configuration) *Bot {
 		config:         config,
 		audioplayers:   audioplayer.NewAudioPlayersMap(),
 		blockedButtons: make(map[string]map[string]struct{}),
+		helpContent:    help,
 	}
 	bot.queueUpdater = updater.NewQueueUpdater(bot.builder, bot.datastore, bot.audioplayers)
 	l.Info("Discord music bot created")

@@ -23,10 +23,11 @@ type Configuration struct {
 
 // initBot creates a new bot object with the provided config,
 // initializes it and returns the bot object
-func initBot(ctx context.Context, configuration *Configuration) *bot.Bot {
+func initBot(ctx context.Context, configuration *Configuration, help string) *bot.Bot {
 	bot := bot.NewBot(
 		ctx,
 		configuration.MusicBot,
+        help,
 	)
 	if err := bot.Init(); err != nil {
 		log.Panic(err)
@@ -43,7 +44,20 @@ func loadConfig(configFiles []string) *Configuration {
 		log.Panic(err)
 	}
 	return &configuration
+}
 
+// loadHelp loads the content from the provided help
+// files, that holds the information about using the bot
+func loadHelp(helpFiles []string) string {
+	help := make([]string, 0)
+	for _, helpFilePath := range helpFiles {
+		content, err := ioutil.ReadFile(helpFilePath)
+		if err != nil {
+			log.Panic(err)
+		}
+		help = append(help, string(content))
+	}
+	return strings.Join(help, "\n")
 }
 
 func main() {
@@ -52,8 +66,13 @@ func main() {
 
 	configFileParam := flag.String(
 		"configFiles",
-		"config.yaml",
+		"../conf/config.yaml",
 		"File with configuration",
+	)
+	helpFileParam := flag.String(
+		"helpFiles",
+		"../conf/help.txt",
+		"File with information about the commands",
 	)
 	flag.Parse()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -61,8 +80,9 @@ func main() {
 	signal.Notify(shutdownSignal, syscall.SIGTERM, syscall.SIGINT)
 
 	configuration := loadConfig(strings.Split(*configFileParam, ","))
+	help := loadHelp(strings.Split(*helpFileParam, ","))
 
-	bot := initBot(ctx, configuration)
+	bot := initBot(ctx, configuration, help)
 
 	go func() {
 		// graceful shutdown
