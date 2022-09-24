@@ -19,13 +19,14 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-    # add the path to the config file as the command line
-    # argument when starting the bot
-    command: "-configFiles=/go/bin/conf/config.yaml"
+    # add the path to the config file  and the help file
+    # as the command line argument when starting the bot
+    command: "-configFiles=/go/bin/conf/config.yaml -helpFiles=/go/bin/conf/help.txt"
     volumes:
-      # NOTE: change the '../src/config.yaml' 
+      # NOTE: change the '../conf/config.yaml' and '../conf/help.txt'
       # to the location of yout config.yaml file
-      - ../src/config.yaml:/go/bin/conf/config.yaml
+      - ../conf/config.yaml:/go/bin/conf/config.yaml
+      - ../conf/help.txt:/go/bin/conf/help.txt
     depends_on:
       postgres:
         condition: service_started
