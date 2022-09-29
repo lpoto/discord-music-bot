@@ -218,7 +218,8 @@ streamingLoop:
 				if err.Error() == "Voice connection closed" {
 					// NOTE: if voice connection has been closed,
 					// just stop without calling any defer functions
-					return err
+                    f = nil
+                    break streamingLoop
 				}
 				// NOTE: the stream finished, if it lasted
 				// less than a second, retry it
@@ -240,12 +241,16 @@ streamingLoop:
 			}
 		}
 	}
-	ap.encodingSession.Cleanup()
+    if ap.encodingSession != nil {
+	    ap.encodingSession.Cleanup()
+    }
 	ap.encodingSession = nil
 	ap.streamingSession = nil
 	ap.durationSeconds = 0
 
-	f(ap.session, ap.guildID)
+    if f != nil {
+	    f(ap.session, ap.guildID)
+    }
 
 	return err
 }

@@ -95,7 +95,6 @@ func main() {
 		}
 		log.Fatal("Forced shutdown")
 	}()
-
 	bot.Run()
 	log.Print("Clean Shutdown")
 }

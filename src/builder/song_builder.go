@@ -3,11 +3,16 @@ package builder
 import (
 	"discord-music-bot/model"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"math/rand"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/golang/freetype/truetype"
+	"github.com/sirupsen/logrus"
 )
 
 // NewSong constructs a song object from the provided song info.
@@ -75,10 +80,45 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 	// and based on that define the new length of the name.
 	// NOTE: Maybe canvas may be used, so the lengths are easily
 	// determine based on the pixel width
-	if len(name) <= 30 {
-		return name
+
+	maxWidth := 10000
+
+	fontPath, _ := os.Getwd()
+	fontPath = fontPath + "/Calibri-Light.ttf"
+	b, err := ioutil.ReadFile(fontPath)
+	if err != nil {
+		logrus.Error(err)
+		return name[:30] + "..."
 	}
-	return builder.decodeJsonEncoding(name[:30]) + "..."
+	font, err := truetype.Parse(b)
+	if err != nil {
+		logrus.Error(err)
+		return name[:30] + "..."
+	}
+	opts := &truetype.Options{
+		Size: 12,
+	}
+	face := truetype.NewFace(font, opts)
+	w := 0
+	s := ""
+	for _, x := range name {
+		awidth, ok := face.GlyphAdvance(rune(x))
+		if ok != true {
+			return name[:30] + "..."
+		} else {
+			w2 := w + int(awidth)
+			if w2 > maxWidth {
+				break
+			}
+			w = w2
+			s += string(x)
+		}
+	}
+	if len(s) == len(name) {
+		return builder.decodeJsonEncoding(s)
+	}
+
+	return builder.decodeJsonEncoding(s) + "..."
 }
 
 // trimYoutubeSongName removes suffixes such as [hd], (video), [lyrics], ...
