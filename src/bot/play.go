@@ -57,7 +57,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 						Type: discordgo.InteractionResponseChannelMessageWithSource,
 						Data: &discordgo.InteractionResponseData{
 							Content: "Cannot join the channel, I may be missing permissions",
-							Flags:   1 << 6, //Ephemeral
+							Flags:   discordgo.MessageFlagsEphemeral,
 						},
 					})
 					if err != nil {

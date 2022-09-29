@@ -16,7 +16,7 @@ func (bot *Bot) onHelpSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: help,
-			Flags:   1 << 6, // 1 << 6 flags marks the response ephemeral
+			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	}); err != nil {
 		bot.WithField("GuildID", i.GuildID).Errorf(

@@ -36,7 +36,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 					"Cannot query more than %d songs at once",
 					bot.youtubeClient.Config.MaxParallelQueries,
 				),
-				Flags: 1 << 6, // Ephemeral
+				Flags: discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return
