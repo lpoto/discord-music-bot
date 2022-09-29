@@ -41,32 +41,47 @@ func (builder *Builder) WrapName(name string) string {
 	// Wrap the text to lines of max length = 30
 	maxLength := 30
 	fields := strings.Fields(name)
-
 	fields2 := make([]string, 0)
+	for _, f := range fields {
+		if len(f) > 60 {
+			n := len(f) / 3
+			fields2 = append(fields2, f[:n])
+			fields2 = append(fields2, f[n:(n+n)])
+			fields2 = append(fields2, f[(n+n):])
+		} else if len(f) > 30 {
+			n := len(f) / 2
+			fields2 = append(fields2, f[:n])
+			fields2 = append(fields2, f[n:])
+		} else {
+			fields2 = append(fields2, f)
+		}
+	}
+
+	fields3 := make([]string, 0)
 
 	// Split the text to multiple lines
 	// where words are not split
 	s := ""
-	for i := 0; i <= len(fields); i++ {
-		if i < len(fields) && (i == 0 || len(s+fields[i])+1 <= maxLength) {
-			if len(fields[i]) > 0 {
-				s += " " + fields[i]
+	for i := 0; i <= len(fields2); i++ {
+		if i < len(fields2) && (i == 0 || len(s+fields2[i])+1 <= maxLength) {
+			if len(fields2[i]) > 0 {
+				s += " " + fields2[i]
 			}
 		} else {
 			diff := int(math.Round((float64(maxLength) - float64(len(s))) / 3))
 			if diff > 0 {
 				s = strings.Repeat("\u2000", diff) + s
 			}
-			if len(fields2) > 0 {
+			if len(fields3) > 0 {
 				s = spacer + s
 			}
-			fields2 = append(fields2, s)
-			if i < len(fields) {
-				s = fields[i]
+			fields3 = append(fields3, s)
+			if i < len(fields2) {
+				s = fields2[i]
 			}
 		}
 	}
-	return strings.Join(fields2, "")
+	return strings.Join(fields3, "")
 }
 
 // shortenYoutubeSongName returns a substring of the provided
