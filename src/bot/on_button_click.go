@@ -49,7 +49,7 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "Sorry, something went wrong ...",
-				Flags:   1 << 6, // Ephemeral
+				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 	}

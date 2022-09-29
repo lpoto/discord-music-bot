@@ -3,7 +3,7 @@
 **1.** Use `/music` to start a new muisc queue in the channel.
     - Only a single queue may be active in a single discord server.
 
-**2.** Add songs by clicking the `Add` button, or using `/music` again.
+**2.** Add songs by clicking the `Add` button.
     - Multiple songs may be added at a time, by typing them each in their own line.
     - Either the name or the url to a Youtube song may be typed to add the desired song.
 

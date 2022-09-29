@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
@@ -21,7 +22,8 @@ type Datastore struct {
 }
 
 type Configuration struct {
-	LogLevel log.Level `yaml:"LogLevel" validate:"required"`
+	LogLevel        log.Level     `yaml:"LogLevel" validate:"required"`
+	InactiveSongTTL time.Duration `yaml:"InactiveSongTTL" validate:"required"`
 }
 
 // NewDatastore constructs an object that handles persisting
@@ -107,6 +109,8 @@ func (datastore *Datastore) Init(ctx context.Context) error {
 	if err := datastore.createInactiveSongTable(); err != nil {
 		return err
 	}
+
+    go datastore.runInactiveSongsCleanup(ctx)
 
 	datastore.Info("Datastore initialized")
 	return nil

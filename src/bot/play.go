@@ -57,7 +57,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 						Type: discordgo.InteractionResponseChannelMessageWithSource,
 						Data: &discordgo.InteractionResponseData{
 							Content: "Cannot join the channel, I may be missing permissions",
-							Flags:   1 << 6, //Ephemeral
+							Flags:   discordgo.MessageFlagsEphemeral,
 						},
 					})
 					if err != nil {
@@ -80,6 +80,11 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 	).Tracef("Playing song: %s", song.Name)
 
 	if err := ap.Play(bot.ctx, song); err != nil {
+		if err.Error() == "Voice connection closed" {
+			// NOTE: stop playing since bot has been
+			// disconnected from the voice channel
+			return nil
+		}
 		bot.Errorf("Error when playing: %v", err)
 	}
 

@@ -27,7 +27,7 @@ func initBot(ctx context.Context, configuration *Configuration, help string) *bo
 	bot := bot.NewBot(
 		ctx,
 		configuration.MusicBot,
-        help,
+		help,
 	)
 	if err := bot.Init(); err != nil {
 		log.Panic(err)

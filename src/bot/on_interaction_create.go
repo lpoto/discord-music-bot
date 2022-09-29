@@ -115,7 +115,7 @@ func (bot *Bot) checkVoice(s *discordgo.Session, i *discordgo.InteractionCreate)
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "You need to be in a voice channel!",
-				Flags:   1 << 6, // Ephemeral
+				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return false
@@ -124,7 +124,7 @@ func (bot *Bot) checkVoice(s *discordgo.Session, i *discordgo.InteractionCreate)
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "You need to undeafen!",
-				Flags:   1 << 6, // Ephemeral
+				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return false
@@ -135,7 +135,7 @@ func (bot *Bot) checkVoice(s *discordgo.Session, i *discordgo.InteractionCreate)
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "We need to be in the same voice channel!",
-				Flags:   1 << 6, // Ephemeral
+				Flags: discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return false

@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	"context"
 	"discord-music-bot/model"
 	"fmt"
 	"time"
@@ -183,4 +184,60 @@ func (datastore *Datastore) createInactiveSongTable() error {
 		"Latency", time.Since(t),
 	).Tracef("[%d]Done : psql table created", i)
 	return nil
+}
+
+// runInactiveSongsCleanup is a long lived worker, that cleans up
+// outdated inactive songs from the datastore at interval.
+func (datastore *Datastore) runInactiveSongsCleanup(ctx context.Context) {
+	interval := datastore.config.InactiveSongTTL / 2
+	if interval < time.Second {
+		interval = time.Second
+	}
+	datastore.WithFields(log.Fields{
+		"TTL":      datastore.config.InactiveSongTTL,
+		"Interval": interval,
+	}).Debug(
+		"Running inactive songs cleanup",
+	)
+	done := ctx.Done()
+	ticker := time.NewTicker(datastore.config.InactiveSongTTL)
+
+	datastore.removeOutdatedInactiveSongs()
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			datastore.removeOutdatedInactiveSongs()
+		}
+	}
+}
+
+// removeOutdatedInactiveSongs removes all the inactive songs
+// with "added" column older than the InactiveSongTTL cofnig option.
+func (datastore *Datastore) removeOutdatedInactiveSongs() {
+	i, t := datastore.getIdx(), time.Now()
+
+	datastore.Tracef(
+		"[%d]Start: Remove outdated inactive songs", i,
+	)
+
+	if _, err := datastore.Exec(
+		`
+        DELETE FROM "inactive_song"
+        WHERE "inactive_song".added <= $1;
+        `,
+		time.Now().Add(datastore.config.InactiveSongTTL*(-1)),
+	); err != nil {
+		datastore.Tracef(
+			"[%d]Error: %v", i, err,
+		)
+		return
+	}
+
+	datastore.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[%d]Done : Outdated inactive songs removed", i)
+
 }

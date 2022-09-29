@@ -142,13 +142,13 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 				builder.newButton(builder.Config.Components.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
 				builder.newButton(builder.Config.Components.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
 				builder.newButton(builder.Config.Components.Previous, discordgo.SecondaryButton, queue.InactiveSize == 0 && !(queue.Size > 1 && builder.QueueHasOption(queue, model.Loop)) || builder.QueueHasOption(queue, model.Paused)),
-				builder.newButton(builder.Config.Components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused) || (queue.Size == 1 && builder.QueueHasOption(queue, model.Loop))),
+				builder.newButton(builder.Config.Components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
 			},
 		},
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				builder.newButton(builder.Config.Components.AddSongs, discordgo.SecondaryButton, false),
-				builder.newButton(builder.Config.Components.Loop, loopStyle, false),
+				builder.newButton(builder.Config.Components.Loop, loopStyle, queue.Size == 0 && !builder.QueueHasOption(queue, model.Loop)),
 				builder.newButton(builder.Config.Components.Pause, pauseStyle, queue.HeadSong == nil),
 				builder.newButton(builder.Config.Components.Replay, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
 			},

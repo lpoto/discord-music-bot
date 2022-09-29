@@ -1,23 +1,23 @@
 MusicBot:
-  LogLevel: DEBUG
-  DiscordToken: discord_bot_token
-  SlashCommands:
-    Music:
+  LogLevel: DEBUG                                                        # default log level for the music bot
+  DiscordToken: discord_bot_token                                        # the authentication token for the bot
+  SlashCommands:                                                         # Global slash commands created by the bot
+    Music:                                                               # Slash command that initializes a new music queue in the server
       Name: music
       Description: "Life is one grand, sweet song so start the music."
-    Help:
+    Help:                                                                # Slash command that send information about the bot, read from a text file
       Name: help
       Description: "Info about using the music bot"
-  Modals:
-    AddSongs:
+  Modals:                                                                 # Modals created by the bot
+    AddSongs:                                                             # Modal, accessed by clicking the "AddSongs"  button
       Name: Add Songs
       Label: Enter names or urls of youtube songs
       Placeholder: "song name or url#1\nsong name or url#2\n..."
-  QueueBuilder:
+  QueueBuilder:                                                           # Configuration for the appearance of the music queue
     Title: Music Queue
     Description: ""
     Footer: "Life is one grand, sweet song... so start the music."
-    Components:
+    Components:                                                           # Labels on the music queue's buttons
       Backward: "<"
       Forward: ">"
       Skip: ">>"
@@ -28,12 +28,13 @@ MusicBot:
       AddSongs: "Add"
       Join: "Join"
       Offline: "The bot is currently offline"
-  Updater:
-    Interval: 5s # do not set under 5s
-    MaxAloneTime: 2m # time after the bot leaves, if it's alone in the channel
+  Updater:                                                                # Updater handles editing the queue, at interval and when clicking on the buttons or adding songs
+    Interval: 5s                                                          # do not set under 5s
+    MaxAloneTime: 2m                                                      # time after the bot leaves, if it's alone in the channel
   Youtube:
-    LogLevel: DEBUG
-    MaxParallelQueries: 100
+    LogLevel: DEBUG                                                       # Log level for the client that performs http requests to youtube
+    MaxParallelQueries: 100                                               # Max. number of songs searched for at the same time
   Datastore:
-    LogLevel: DEBUG
+    LogLevel: DEBUG                                                       # Log level for the postgres datastore
+    InactiveSongTTL: 2h                                                   # Duration after which the inactive song is deleted (song that has already been listened to and may be accessed by clicking the "previous" button)
 
