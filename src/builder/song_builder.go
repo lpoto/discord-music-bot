@@ -3,11 +3,15 @@ package builder
 import (
 	"discord-music-bot/model"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/golang/freetype/truetype"
+	"github.com/sirupsen/logrus"
 )
 
 // NewSong constructs a song object from the provided song info.
@@ -37,32 +41,47 @@ func (builder *Builder) WrapName(name string) string {
 	// Wrap the text to lines of max length = 30
 	maxLength := 30
 	fields := strings.Fields(name)
-
 	fields2 := make([]string, 0)
+	for _, f := range fields {
+		if len(f) > 60 {
+			n := len(f) / 3
+			fields2 = append(fields2, f[:n])
+			fields2 = append(fields2, f[n:(n+n)])
+			fields2 = append(fields2, f[(n+n):])
+		} else if len(f) > 30 {
+			n := len(f) / 2
+			fields2 = append(fields2, f[:n])
+			fields2 = append(fields2, f[n:])
+		} else {
+			fields2 = append(fields2, f)
+		}
+	}
+
+	fields3 := make([]string, 0)
 
 	// Split the text to multiple lines
 	// where words are not split
 	s := ""
-	for i := 0; i <= len(fields); i++ {
-		if i < len(fields) && (i == 0 || len(s+fields[i])+1 <= maxLength) {
-			if len(fields[i]) > 0 {
-				s += " " + fields[i]
+	for i := 0; i <= len(fields2); i++ {
+		if i < len(fields2) && (i == 0 || len(s+fields2[i])+1 <= maxLength) {
+			if len(fields2[i]) > 0 {
+				s += " " + fields2[i]
 			}
 		} else {
 			diff := int(math.Round((float64(maxLength) - float64(len(s))) / 3))
 			if diff > 0 {
 				s = strings.Repeat("\u2000", diff) + s
 			}
-			if len(fields2) > 0 {
+			if len(fields3) > 0 {
 				s = spacer + s
 			}
-			fields2 = append(fields2, s)
-			if i < len(fields) {
-				s = fields[i]
+			fields3 = append(fields3, s)
+			if i < len(fields2) {
+				s = fields2[i]
 			}
 		}
 	}
-	return strings.Join(fields2, "")
+	return strings.Join(fields3, "")
 }
 
 // shortenYoutubeSongName returns a substring of the provided
@@ -75,10 +94,49 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 	// and based on that define the new length of the name.
 	// NOTE: Maybe canvas may be used, so the lengths are easily
 	// determine based on the pixel width
-	if len(name) <= 30 {
-		return name
+
+	maxWidth := 13000
+	name2 := name
+	if len(name) >= 30 {
+		name2 = name[:30] + "..."
 	}
-	return builder.decodeJsonEncoding(name[:30]) + "..."
+
+	// NOTE: discord uses Uni-Sans
+	fontPath := "../assets/Discord-Font.ttf"
+	b, err := ioutil.ReadFile(fontPath)
+	if err != nil {
+		logrus.Error(err)
+		return name2
+	}
+	font, err := truetype.Parse(b)
+	if err != nil {
+		logrus.Error(err)
+		return name2
+	}
+	opts := &truetype.Options{
+		Size: 14, // NOTE: default font size for discord is 14
+	}
+	face := truetype.NewFace(font, opts)
+	w := 0
+	s := ""
+	for _, x := range name {
+		awidth, ok := face.GlyphAdvance(rune(x))
+		if ok != true {
+			return name[:30] + "..."
+		} else {
+			w2 := w + int(awidth)
+			if w2 > maxWidth {
+				break
+			}
+			w = w2
+			s += string(x)
+		}
+	}
+	if len(s) == len(name) {
+		return builder.decodeJsonEncoding(s)
+	}
+
+	return builder.decodeJsonEncoding(s) + "..."
 }
 
 // trimYoutubeSongName removes suffixes such as [hd], (video), [lyrics], ...
