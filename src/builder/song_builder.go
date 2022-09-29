@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"math"
 	"math/rand"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -81,22 +80,26 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 	// NOTE: Maybe canvas may be used, so the lengths are easily
 	// determine based on the pixel width
 
-	maxWidth := 10000
+	maxWidth := 13000
+	name2 := name
+	if len(name) >= 30 {
+		name2 = name[:30] + "..."
+	}
 
-	fontPath, _ := os.Getwd()
-	fontPath = fontPath + "/Calibri-Light.ttf"
+	// NOTE: discord uses Uni-Sans
+	fontPath := "../assets/Discord-Font.ttf"
 	b, err := ioutil.ReadFile(fontPath)
 	if err != nil {
 		logrus.Error(err)
-		return name[:30] + "..."
+		return name2
 	}
 	font, err := truetype.Parse(b)
 	if err != nil {
 		logrus.Error(err)
-		return name[:30] + "..."
+		return name2
 	}
 	opts := &truetype.Options{
-		Size: 12,
+		Size: 14, // NOTE: default font size for discord is 14
 	}
 	face := truetype.NewFace(font, opts)
 	w := 0
