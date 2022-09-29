@@ -215,6 +215,11 @@ streamingLoop:
 				err, f = nil, ap.funcs.getDeferFunc()
 				break streamingLoop
 			case err = <-streamDone:
+				if err.Error() == "Voice connection closed" {
+					// NOTE: if voice connection has been closed,
+					// just stop without calling any defer functions
+					return err
+				}
 				// NOTE: the stream finished, if it lasted
 				// less than a second, retry it
 				if time.Since(t) < time.Second {
