@@ -1,6 +1,8 @@
 package bot
 
 import (
+	"discord-music-bot/model"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -13,4 +15,22 @@ func (bot *Bot) onVoiceStateUpdate(s *discordgo.Session, i *discordgo.VoiceState
 		return
 	}
 	bot.WithField("GuildID", i.GuildID).Trace("Voice state update")
+
+	if i.UserID == s.State.User.ID {
+		if i.BeforeUpdate != nil &&
+			len(i.BeforeUpdate.ChannelID) > 0 && len(i.ChannelID) == 0 {
+			// NOTE: the bot has been disconnected from voice channel
+			// mark the queue inactive
+			if err := bot.datastore.PersistQueueOptions(
+				s.State.User.ID,
+				i.GuildID,
+				model.InactiveOption(),
+			); err != nil {
+				bot.Errorf("Error when persisting inactive option: %v", err)
+			} else {
+				bot.queueUpdater.NeedsUpdate(i.GuildID)
+				bot.queueUpdater.Update(s, i.GuildID)
+			}
+		}
+	}
 }
