@@ -4,7 +4,6 @@ import (
 	"discord-music-bot/bot/audioplayer"
 	"discord-music-bot/builder"
 	"discord-music-bot/datastore"
-	"discord-music-bot/model"
 	"sync"
 	"time"
 
@@ -292,23 +291,12 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 // and disconects the client from the voiceChannel in the guild identified
 // by the provided guildID
 func (updater *QueueUpdater) markQueueInactive(s *discordgo.Session, guildID string) {
-	updater.datastore.RemoveQueueOptions(
-		s.State.User.ID,
-		guildID,
-		model.Paused,
-	)
-	updater.datastore.PersistQueueOptions(
-		s.State.User.ID,
-		guildID,
-		model.InactiveOption(),
-	)
 	if ap, ok := updater.audioplayers.Get(guildID); ok {
 		ap.AddDeferFunc(func(*discordgo.Session, string) {})
 		ap.Continue = false
 		ap.Stop()
 	}
 	updater.NeedsUpdate(guildID)
-	updater.Update(s, guildID)
 
 	if vc, ok := s.VoiceConnections[guildID]; ok {
 		vc.Disconnect()
