@@ -1,6 +1,8 @@
 package bot
 
 import (
+	"fmt"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -12,11 +14,23 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	bot.WithField("GuildID", i.GuildID).Trace("Music slash command")
 
 	// NOTE: only a single queue may be active in a guild at once
-	if _, err := bot.datastore.FindQueue(
+	if queue, err := bot.datastore.FindQueue(
 		s.State.User.ID,
 		i.GuildID,
 	); err == nil {
-		bot.onAddSongsCommand(s, i)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf(
+					"A music queue is already active in this server: "+
+						"https://discord.com/channels/%s/%s/%s",
+					queue.GuildID,
+					queue.ChannelID,
+					queue.MessageID,
+				),
+				Flags: discordgo.MessageFlagsEphemeral,
+			},
+		})
 		return
 	}
 
