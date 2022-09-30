@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -43,11 +42,11 @@ func (datastore *Datastore) PersistInactiveSongs(clientID string, guildID string
 		if idx > 1 {
 			s += ","
 		}
-		params = append(params, datastore.toPSQLArray(song.Name))
-		params = append(params, datastore.toPSQLArray(song.ShortName))
-		params = append(params, datastore.toPSQLArray(song.Url))
+		params = append(params, song.Name)
+		params = append(params, song.ShortName)
+		params = append(params, song.Url)
 		params = append(params, song.DurationSeconds)
-		params = append(params, datastore.toPSQLArray(song.DurationString))
+		params = append(params, song.DurationString)
 		params = append(params, song.Color)
 		params = append(params, clientID)
 		params = append(params, guildID)
@@ -101,9 +100,7 @@ func (datastore *Datastore) PopLatestInactiveSong(clientID string, guildID strin
 		guildID,
 	).Scan(
 		&song.ID,
-		pq.Array(&name), pq.Array(&shortName),
-		pq.Array(&url), &song.DurationSeconds,
-		pq.Array(&durationString),
+		&song.Name, &song.ShortName, &song.Url,
 		&song.Color, &ignore, &ignore, &ignore,
 	); err != nil {
 		datastore.Tracef("[%d]Error: %v", i, err)
@@ -168,11 +165,11 @@ func (datastore *Datastore) createInactiveSongTable() error {
 		`
         CREATE TABLE IF NOT EXISTS "inactive_song" (
             id SERIAL,
-            name int[] NOT NULL,
-            short_name int[] NOT NULL,
-            url int[] NOT NULL,
+            name VARCHAR NOT NULL,
+            short_name VARCHAR NOT NULL,
+            url VARCHAR NOT NULL,
             duration_seconds INTEGER NOT NULL,
-            duration_string int[] NOT NULL,
+            duration_string VARCHAR NOT NULL,
             color INTEGER NOT NULL,
             queue_client_id VARCHAR,
             queue_guild_id VARCHAR,

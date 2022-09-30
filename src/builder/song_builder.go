@@ -167,11 +167,11 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	r = regexp.MustCompile(`\s*-\s*`)
 	name = string(r.ReplaceAll([]byte(name), []byte(" - ")))
 
-	// Replace all quotes with ' so there are no code blocks or
-	// bad encodings for postgres
-	name = strings.ReplaceAll(name, "`", "'")
-	name = strings.ReplaceAll(name, "“", "'")
-	name = strings.ReplaceAll(name, `"`, "'")
+	// Replace all quotes with " so there are no code blocks or
+	// issues with postgres
+	name = strings.ReplaceAll(name, "`", `"`)
+	name = strings.ReplaceAll(name, "“", `"`)
+	name = strings.ReplaceAll(name, `'`, `"`)
 
 	// Escape * and _ so the songs are not bold, italic or crossed
 	name = strings.ReplaceAll(name, "_", `\_`)

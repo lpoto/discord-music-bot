@@ -56,11 +56,11 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 			s += ","
 		}
 		params = append(params, maxPosition)
-		params = append(params, datastore.toPSQLArray(song.Name))
-		params = append(params, datastore.toPSQLArray(song.ShortName))
-		params = append(params, datastore.toPSQLArray(song.Url))
+		params = append(params, song.Name)
+		params = append(params, song.ShortName)
+		params = append(params, song.Url)
 		params = append(params, song.DurationSeconds)
-		params = append(params, datastore.toPSQLArray(song.DurationString))
+		params = append(params, song.DurationString)
 		params = append(params, song.Color)
 		params = append(params, clientID)
 		params = append(params, guildID)
@@ -110,11 +110,11 @@ func (datastore *Datastore) PersistSongToFront(clientID string, guildID string, 
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `,
 		minPosition-1,
-		datastore.toPSQLArray(song.Name),
-		datastore.toPSQLArray(song.ShortName),
-		datastore.toPSQLArray(song.Url),
+		song.Name,
+		song.ShortName,
+		song.Url,
 		song.DurationSeconds,
-		datastore.toPSQLArray(song.DurationString),
+		song.DurationString,
 		song.Color,
 		clientID,
 		guildID,
@@ -170,11 +170,11 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 		}
 		params = append(params, song.ID)
 		params = append(params, song.Position)
-		params = append(params, datastore.toPSQLArray(song.Name))
-		params = append(params, datastore.toPSQLArray(song.ShortName))
-		params = append(params, datastore.toPSQLArray(song.Url))
+		params = append(params, song.Name)
+		params = append(params, song.ShortName)
+		params = append(params, song.Url)
 		params = append(params, song.DurationSeconds)
-		params = append(params, datastore.toPSQLArray(song.DurationString))
+		params = append(params, song.DurationString)
 		params = append(params, song.Color)
 
 		s += fmt.Sprintf(
@@ -233,13 +233,11 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 		for rows.Next() {
 			song := &model.Song{}
 			var ignore string
-			name, shortName, url, durationString := []int64{}, []int64{}, []int64{}, []int64{}
 			if err := rows.Scan(
 				&song.ID, &song.Position,
-				pq.Array(&name), pq.Array(&shortName),
-				pq.Array(&url),
+				&song.Name, &song.ShortName, &song.Url,
 				&song.DurationSeconds,
-				pq.Array(&durationString),
+				&song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
 				datastore.Tracef(
@@ -247,10 +245,6 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 				)
 				return nil, err
 			} else {
-				song.Name = datastore.toString(name)
-				song.ShortName = datastore.toString(shortName)
-				song.Url = datastore.toString(url)
-				song.DurationString = datastore.toString(durationString)
 				songs = append(songs, song)
 			}
 		}
@@ -287,14 +281,12 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 		songs := make([]*model.Song, 0)
 		for rows.Next() {
 			song := &model.Song{}
-			name, shortName, url, durationString := []int64{}, []int64{}, []int64{}, []int64{}
 			var ignore string
 			if err := rows.Scan(
 				&song.ID, &song.Position,
-				pq.Array(&name), pq.Array(&shortName),
-				pq.Array(&url),
+				&song.Name, &song.ShortName, &song.Url,
 				&song.DurationSeconds,
-				pq.Array(&durationString),
+				&song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
 				datastore.Tracef(
@@ -302,10 +294,6 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 				)
 				return nil, err
 			} else {
-				song.Name = datastore.toString(name)
-				song.ShortName = datastore.toString(shortName)
-				song.Url = datastore.toString(url)
-				song.DurationString = datastore.toString(durationString)
 				songs = append(songs, song)
 			}
 		}
@@ -515,11 +503,11 @@ func (datastore *Datastore) createSongTable() error {
         CREATE TABLE IF NOT EXISTS "song" (
             id SERIAL,
             position INTEGER NOT NULL DEFAULT '0',
-            name int[] NOT NULL,
-            short_name int[] NOT NULL,
-            url int[] NOT NULL,
+            name VARCHAR NOT NULL,
+            short_name VARCHAR NOT NULL,
+            url VARCHAR NOT NULL,
             duration_seconds INTEGER NOT NULL,
-            duration_string int[] NOT NULL,
+            duration_string VARCHAR NOT NULL,
             color INTEGER NOT NULL,
             queue_client_id VARCHAR,
             queue_guild_id VARCHAR,
