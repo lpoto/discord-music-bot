@@ -167,15 +167,19 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	r = regexp.MustCompile(`\s*-\s*`)
 	name = string(r.ReplaceAll([]byte(name), []byte(" - ")))
 
-	// Replace all ` quotes with ' so there are no code blocks
+	// Replace all quotes with ' so there are no code blocks or
+	// bad encodings for postgres
 	name = strings.ReplaceAll(name, "`", "'")
+	name = strings.ReplaceAll(name, "“", "'")
+	name = strings.ReplaceAll(name, `"`, "'")
 
 	// Escape * and _ so the songs are not bold, italic or crossed
 	name = strings.ReplaceAll(name, "_", `\_`)
 	name = strings.ReplaceAll(name, "*", `\*`)
 
 	// Convert the name to 'Title Format String'
-	return builder.toTitleString(name)
+	name = builder.toTitleString(name)
+	return name
 }
 
 // secondsToTimeString converts the seconds to a string

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -32,6 +33,8 @@ func (datastore *Datastore) PersistInactiveSongs(clientID string, guildID string
     ) VALUES
     `
 	idx := 0
+	params := make([]interface{}, 0)
+	p := 1
 	for _, song := range songs {
 		if song == nil {
 			continue
@@ -40,19 +43,21 @@ func (datastore *Datastore) PersistInactiveSongs(clientID string, guildID string
 		if idx > 1 {
 			s += ","
 		}
+		params = append(params, datastore.toPSQLArray(song.Name))
+		params = append(params, datastore.toPSQLArray(song.ShortName))
+		params = append(params, datastore.toPSQLArray(song.Url))
+		params = append(params, song.DurationSeconds)
+		params = append(params, datastore.toPSQLArray(song.DurationString))
+		params = append(params, song.Color)
+		params = append(params, clientID)
+		params = append(params, guildID)
 		s += fmt.Sprintf(
-			` ('%s', '%s', '%s', %d, '%s', %d, '%s', '%s')`,
-			datastore.escapeSingleQuotes(song.Name),
-			datastore.escapeSingleQuotes(song.ShortName),
-			datastore.escapeSingleQuotes(song.Url),
-			song.DurationSeconds,
-			datastore.escapeSingleQuotes(song.DurationString),
-			song.Color,
-			clientID,
-			guildID,
+			` ($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)`,
+			p, p+1, p+2, p+3, p+4, p+5, p+6, p+7,
 		)
+		p += 8
 	}
-	if _, err := datastore.Exec(s); err != nil {
+	if _, err := datastore.Exec(s, params...); err != nil {
 		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
@@ -75,6 +80,7 @@ func (datastore *Datastore) PopLatestInactiveSong(clientID string, guildID strin
 	}).Tracef("[%d]Start: Pop latest inactive song", i)
 
 	song := &model.Song{}
+	name, shortName, url, durationString := []int64{}, []int64{}, []int64{}, []int64{}
 	var ignore string
 
 	if err := datastore.QueryRow(
@@ -94,16 +100,19 @@ func (datastore *Datastore) PopLatestInactiveSong(clientID string, guildID strin
 		clientID,
 		guildID,
 	).Scan(
-		&song.ID, &song.Name, &song.ShortName,
-		&song.Url, &song.DurationSeconds, &song.DurationString,
+		&song.ID,
+		pq.Array(&name), pq.Array(&shortName),
+		pq.Array(&url), &song.DurationSeconds,
+		pq.Array(&durationString),
 		&song.Color, &ignore, &ignore, &ignore,
 	); err != nil {
 		datastore.Tracef("[%d]Error: %v", i, err)
 		return nil, err
 	}
-	song.Name = datastore.unescapeSingleQuotes(song.Name)
-	song.ShortName = datastore.unescapeSingleQuotes(song.ShortName)
-	song.Url = datastore.unescapeSingleQuotes(song.Url)
+	song.Name = datastore.toString(name)
+	song.ShortName = datastore.toString(shortName)
+	song.Url = datastore.toString(url)
+	song.DurationString = datastore.toString(durationString)
 
 	datastore.WithField(
 		"Latency",
@@ -159,11 +168,11 @@ func (datastore *Datastore) createInactiveSongTable() error {
 		`
         CREATE TABLE IF NOT EXISTS "inactive_song" (
             id SERIAL,
-            name VARCHAR NOT NULL,
-            short_name VARCHAR NOT NULL,
-            url VARCHAR NOT NULL,
+            name int[] NOT NULL,
+            short_name int[] NOT NULL,
+            url int[] NOT NULL,
             duration_seconds INTEGER NOT NULL,
-            duration_string VARCHAR NOT NULL,
+            duration_string int[] NOT NULL,
             color INTEGER NOT NULL,
             queue_client_id VARCHAR,
             queue_guild_id VARCHAR,
