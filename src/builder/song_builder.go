@@ -133,10 +133,10 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 		}
 	}
 	if len(s) == len(name) {
-		return builder.decodeJsonEncoding(s)
+		return s
 	}
 
-	return builder.decodeJsonEncoding(s) + "..."
+	return s + "..."
 }
 
 // trimYoutubeSongName removes suffixes such as [hd], (video), [lyrics], ...
@@ -177,9 +177,7 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	name = builder.decodeJsonEncoding(name)
 
 	// Convert the name to 'Title Format String'
-	name = builder.toTitleString(name)
-
-	return builder.decodeJsonEncoding(name)
+	return builder.toTitleString(name)
 }
 
 // secondsToTimeString converts the seconds to a string
@@ -211,6 +209,9 @@ func (builder *Builder) decodeJsonEncoding(s string) string {
 // unles the word is shorter than 3 characters, then it is
 // only lowercase
 func (builder *Builder) toTitleString(s string) string {
+	if len(s) == 0 {
+		return "*NoTitle*"
+	}
 	split := strings.Fields(s)
 	for i, f := range split {
 		f = strings.ToLower(f)
@@ -220,12 +221,11 @@ func (builder *Builder) toTitleString(s string) string {
 		split[i] = f
 	}
 	s = strings.Join(split, " ")
-	s = builder.decodeJsonEncoding(s)
 	if len(s) == 1 {
 		return strings.ToUpper(s)
 	}
 	if len(s) == 0 {
-		return "NoTitle"
+		return "*NoTitle*"
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
 }
