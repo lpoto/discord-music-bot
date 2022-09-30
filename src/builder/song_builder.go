@@ -177,8 +177,6 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	name = strings.ReplaceAll(name, "_", `\_`)
 	name = strings.ReplaceAll(name, "*", `\*`)
 
-	// Convert the name to 'Title Format String'
-	name = builder.toTitleString(name)
 	return name
 }
 
@@ -199,30 +197,4 @@ func (builder *Builder) secondsToTimeString(seconds int) string {
 		s += fmt.Sprintf("%d:", minutes)
 	}
 	return s + fmt.Sprintf("%.2d", seconds)
-}
-
-// toTitleString converts the provided string so that
-// each word is lowercase but starts with an uppercase character,
-// unles the word is shorter than 3 characters, then it is
-// only lowercase
-func (builder *Builder) toTitleString(s string) string {
-	if len(s) == 0 {
-		return "*NoTitle*"
-	}
-	split := strings.Fields(s)
-	for i, f := range split {
-		f = strings.ToLower(f)
-		if len(f) > 2 {
-			f = strings.ToUpper(f[:1]) + f[1:]
-		}
-		split[i] = f
-	}
-	s = strings.Join(split, " ")
-	if len(s) == 1 {
-		return strings.ToUpper(s)
-	}
-	if len(s) == 0 {
-		return "*NoTitle*"
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
