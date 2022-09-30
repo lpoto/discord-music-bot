@@ -7,11 +7,10 @@ import (
 	"math"
 	"math/rand"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/golang/freetype/truetype"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // NewSong constructs a song object from the provided song info.
@@ -105,12 +104,12 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 	fontPath := "../assets/Discord-Font.ttf"
 	b, err := ioutil.ReadFile(fontPath)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return name2
 	}
 	font, err := truetype.Parse(b)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return name2
 	}
 	opts := &truetype.Options{
@@ -174,7 +173,6 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	// Escape * and _ so the songs are not bold, italic or crossed
 	name = strings.ReplaceAll(name, "_", `\_`)
 	name = strings.ReplaceAll(name, "*", `\*`)
-	name = builder.decodeJsonEncoding(name)
 
 	// Convert the name to 'Title Format String'
 	return builder.toTitleString(name)
@@ -197,11 +195,6 @@ func (builder *Builder) secondsToTimeString(seconds int) string {
 		s += fmt.Sprintf("%d:", minutes)
 	}
 	return s + fmt.Sprintf("%.2d", seconds)
-}
-
-func (builder *Builder) decodeJsonEncoding(s string) string {
-	name, _ := strconv.Unquote(`"` + s + `"`)
-	return name
 }
 
 // toTitleString converts the provided string so that
