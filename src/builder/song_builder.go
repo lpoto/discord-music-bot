@@ -7,11 +7,10 @@ import (
 	"math"
 	"math/rand"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/golang/freetype/truetype"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // NewSong constructs a song object from the provided song info.
@@ -105,12 +104,12 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 	fontPath := "../assets/Discord-Font.ttf"
 	b, err := ioutil.ReadFile(fontPath)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return name2
 	}
 	font, err := truetype.Parse(b)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return name2
 	}
 	opts := &truetype.Options{
@@ -133,10 +132,10 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 		}
 	}
 	if len(s) == len(name) {
-		return builder.decodeJsonEncoding(s)
+		return s
 	}
 
-	return builder.decodeJsonEncoding(s) + "..."
+	return s + "..."
 }
 
 // trimYoutubeSongName removes suffixes such as [hd], (video), [lyrics], ...
@@ -150,7 +149,7 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	r := regexp.MustCompile(
 		`(?i)(?m)` +
 			`((-\s*)?((off?ici([^(spot)]|[^(video)])*\s*` +
-			`(spot|video))|(h(d|q))|(\d+p)|(\dk))$)` +
+			`(spot|video))|(h(d|q))|(\*hd\*)|(\d+p)|(\dk))$)` +
 			`|` +
 			`((-\s*)?(\(|\[|\|).*?(lyric(s)?|text|tekst|of(f)?ici(j)?al(ni)?|` +
 			`\s*video|film|audio|spot|hd|hq|\dk)(\s*(\d+)?)(\)|\]|\|))` +
@@ -168,18 +167,16 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 	r = regexp.MustCompile(`\s*-\s*`)
 	name = string(r.ReplaceAll([]byte(name), []byte(" - ")))
 
-	// Replace all ` quotes with ' so there are no code blocks
-	name = strings.ReplaceAll(name, "`", "'")
+	// Replace quotes so there are no code blocks or
+	// issues with postgres
+	name = strings.ReplaceAll(name, "`", `'`)
+	name = strings.ReplaceAll(name, "“", `"`)
 
 	// Escape * and _ so the songs are not bold, italic or crossed
 	name = strings.ReplaceAll(name, "_", `\_`)
 	name = strings.ReplaceAll(name, "*", `\*`)
-	name = builder.decodeJsonEncoding(name)
 
-	// Convert the name to 'Title Format String'
-	name = builder.toTitleString(name)
-
-	return builder.decodeJsonEncoding(name)
+	return name
 }
 
 // secondsToTimeString converts the seconds to a string
@@ -199,33 +196,4 @@ func (builder *Builder) secondsToTimeString(seconds int) string {
 		s += fmt.Sprintf("%d:", minutes)
 	}
 	return s + fmt.Sprintf("%.2d", seconds)
-}
-
-func (builder *Builder) decodeJsonEncoding(s string) string {
-	name, _ := strconv.Unquote(`"` + s + `"`)
-	return name
-}
-
-// toTitleString converts the provided string so that
-// each word is lowercase but starts with an uppercase character,
-// unles the word is shorter than 3 characters, then it is
-// only lowercase
-func (builder *Builder) toTitleString(s string) string {
-	split := strings.Fields(s)
-	for i, f := range split {
-		f = strings.ToLower(f)
-		if len(f) > 2 {
-			f = strings.ToUpper(f[:1]) + f[1:]
-		}
-		split[i] = f
-	}
-	s = strings.Join(split, " ")
-	s = builder.decodeJsonEncoding(s)
-	if len(s) == 1 {
-		return strings.ToUpper(s)
-	}
-	if len(s) == 0 {
-		return "NoTitle"
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }

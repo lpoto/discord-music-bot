@@ -1,8 +1,8 @@
 package youtube
 
 import (
+	"bytes"
 	"regexp"
-	"strconv"
 )
 
 func (client *YoutubeClient) getRegExpGroupValues(reString string, s string, groups []string) map[string]string {
@@ -33,7 +33,11 @@ func (client *YoutubeClient) extractYoutubeVideoID(url string) (string, bool) {
 	return v, ok
 }
 
-func (client *YoutubeClient) decodeJsonEncoding(s string) string {
-	name, _ := strconv.Unquote(`"` + s + `"`)
-	return name
+// unescapeHTML replaces \u0026 with &, \u003e with > and \u003c with <
+func (client *YoutubeClient) unescapeHTML(s string) string {
+	b := []byte(s)
+	b = bytes.Replace(b, []byte("\\u003c"), []byte("<"), -1)
+	b = bytes.Replace(b, []byte("\\u003e"), []byte(">"), -1)
+	b = bytes.Replace(b, []byte("\\u0026"), []byte("&"), -1)
+	return string(b)
 }

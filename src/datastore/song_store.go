@@ -40,6 +40,8 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
     `
 	used := make(map[string]struct{})
 	idx := 0
+	params := make([]interface{}, 0)
+	p := 1
 	for _, song := range songs {
 		if song == nil {
 			continue
@@ -53,20 +55,23 @@ func (datastore *Datastore) PersistSongs(clientID string, guildID string, songs 
 		if idx > 1 {
 			s += ","
 		}
+		params = append(params, maxPosition)
+		params = append(params, song.Name)
+		params = append(params, song.ShortName)
+		params = append(params, song.Url)
+		params = append(params, song.DurationSeconds)
+		params = append(params, song.DurationString)
+		params = append(params, song.Color)
+		params = append(params, clientID)
+		params = append(params, guildID)
 		s += fmt.Sprintf(
-			` (%d, '%s', '%s', '%s', %d, '%s', %d, '%s', '%s')`,
-			maxPosition,
-			datastore.escapeSingleQuotes(song.Name),
-			datastore.escapeSingleQuotes(song.ShortName),
-			datastore.escapeSingleQuotes(song.Url),
-			song.DurationSeconds,
-			datastore.escapeSingleQuotes(song.DurationString),
-			song.Color,
-			clientID,
-			guildID,
+			` ($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)`,
+			p, p+1, p+2, p+3, p+4, p+5, p+6, p+7, p+8,
 		)
+		p += 9
 	}
-	if _, err := datastore.Exec(s); err != nil {
+	s += ";"
+	if _, err := datastore.Exec(s, params...); err != nil {
 		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
@@ -105,11 +110,11 @@ func (datastore *Datastore) PersistSongToFront(clientID string, guildID string, 
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `,
 		minPosition-1,
-		datastore.escapeSingleQuotes(song.Name),
-		datastore.escapeSingleQuotes(song.ShortName),
-		datastore.escapeSingleQuotes(song.Url),
+		song.Name,
+		song.ShortName,
+		song.Url,
 		song.DurationSeconds,
-		datastore.escapeSingleQuotes(song.DurationString),
+		song.DurationString,
 		song.Color,
 		clientID,
 		guildID,
@@ -152,6 +157,8 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
     `
 	used := make(map[uint]struct{})
 	idx := 0
+	params := make([]interface{}, 0)
+	p := 1
 	for _, song := range songs {
 		if _, ok := used[song.ID]; ok {
 			continue
@@ -161,17 +168,20 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 		if idx > 1 {
 			s += ","
 		}
+		params = append(params, song.ID)
+		params = append(params, song.Position)
+		params = append(params, song.Name)
+		params = append(params, song.ShortName)
+		params = append(params, song.Url)
+		params = append(params, song.DurationSeconds)
+		params = append(params, song.DurationString)
+		params = append(params, song.Color)
+
 		s += fmt.Sprintf(
-			` (%d, %d, '%s', '%s', '%s', %d, '%s', %d)`,
-			song.ID,
-			song.Position,
-			datastore.escapeSingleQuotes(song.Name),
-			datastore.escapeSingleQuotes(song.ShortName),
-			datastore.escapeSingleQuotes(song.Url),
-			song.DurationSeconds,
-			datastore.escapeSingleQuotes(song.DurationString),
-			song.Color,
+			` ($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)`,
+			p, p+1, p+2, p+3, p+4, p+5, p+6, p+7,
 		)
+		p += 8
 	}
 	s += `
         ) as s2(
@@ -180,7 +190,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
         )
     WHERE s.id = s2.id;
     `
-	if _, err := datastore.Exec(s); err != nil {
+	if _, err := datastore.Exec(s, params...); err != nil {
 		datastore.Tracef("[%d]Error: %v", i, err)
 		return err
 	}
@@ -226,7 +236,8 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 			if err := rows.Scan(
 				&song.ID, &song.Position,
 				&song.Name, &song.ShortName, &song.Url,
-				&song.DurationSeconds, &song.DurationString,
+				&song.DurationSeconds,
+				&song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
 				datastore.Tracef(
@@ -234,9 +245,6 @@ func (datastore *Datastore) GetSongsForQueue(clientID string, guildID string, of
 				)
 				return nil, err
 			} else {
-				song.Name = datastore.unescapeSingleQuotes(song.Name)
-				song.ShortName = datastore.unescapeSingleQuotes(song.ShortName)
-				song.Url = datastore.unescapeSingleQuotes(song.Url)
 				songs = append(songs, song)
 			}
 		}
@@ -277,7 +285,8 @@ func (datastore *Datastore) GetAllSongsForQueue(clientID string, guildID string)
 			if err := rows.Scan(
 				&song.ID, &song.Position,
 				&song.Name, &song.ShortName, &song.Url,
-				&song.DurationSeconds, &song.DurationString,
+				&song.DurationSeconds,
+				&song.DurationString,
 				&song.Color, &ignore, &ignore,
 			); err != nil {
 				datastore.Tracef(

@@ -42,7 +42,7 @@ func (bot *Bot) addSongsComponents() []discordgo.MessageComponent {
 		Placeholder: bot.config.Modals.AddSongs.Placeholder,
 		Style:       discordgo.TextInputParagraph,
 		MinLength:   1,
-		MaxLength:   1000,
+		MaxLength:   4000,
 		Required:    true,
 	}
 	return []discordgo.MessageComponent{textInput}

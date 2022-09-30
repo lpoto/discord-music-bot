@@ -10,7 +10,7 @@ import (
 // The provided queue is expected to have all the data fetched.
 func (service *Service) IncrementQueueOffset(queue *model.Queue) {
 	queue.Offset += queue.Limit
-	if queue.Offset >= queue.Size {
+	if queue.Offset+1 >= queue.Size {
 		queue.Offset = 0
 	}
 }
