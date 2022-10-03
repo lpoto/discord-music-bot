@@ -16,6 +16,8 @@ MusicBot:
   MessageCommands:                                                        # Commands accesed by right clicking the message then selecting apps/ (max. 5)
     Resend: "Resend"
     Stop: "Stop"
+    Shuffle: "Shuffle"
+    Jump: "Jump"
     EditSongs: "Edit songs"
   QueueBuilder:                                                           # Configuration for the appearance of the music queue
     Title: Music Queue

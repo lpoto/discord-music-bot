@@ -11,6 +11,8 @@ import (
 type MessageCommandsConfig struct {
 	Resend    string `yaml:"Resend" validate:"required"`
 	Stop      string `yaml:"Stop" validate:"required"`
+	Shuffle   string `yaml:"Shuffle" validate:"required"`
+	Jump      string `yaml:"Jump" validate:"required"`
 	EditSongs string `yaml:"EditSongs" validate:"required"`
 }
 
