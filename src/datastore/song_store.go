@@ -189,7 +189,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 	}
 	datastore.WithField(
 		"Latency", time.Since(t),
-	).Infof("[%d]Done : Songs updated", i)
+	).Tracef("[%d]Done : Songs updated", i)
 	return nil
 }
 

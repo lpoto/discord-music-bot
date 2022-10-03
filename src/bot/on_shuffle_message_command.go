@@ -20,6 +20,18 @@ func (bot *Bot) onShuffleMessageCommand(s *discordgo.Session, i *discordgo.Inter
 		bot.Errorf("Error when fetching all songs for queue: %v", err)
 		return
 	}
+	if len(songs) < 3 {
+		s.InteractionRespond(
+			i.Interaction,
+			&discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "There too few songs to shuffle!",
+					Flags:   discordgo.MessageFlagsEphemeral,
+				},
+			})
+		return
+	}
 	t := time.Now()
 	songs = bot.service.ShuffleSongs(songs)
 	if err := bot.datastore.UpdateSongs(songs); err != nil {
@@ -31,10 +43,17 @@ func (bot *Bot) onShuffleMessageCommand(s *discordgo.Session, i *discordgo.Inter
 	if d > 0 {
 		time.Sleep(d)
 	}
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	})
-	s.InteractionResponseDelete(i.Interaction)
 	bot.queueUpdater.NeedsUpdate(i.GuildID)
-	bot.queueUpdater.Update(s, i.GuildID)
+	if err = bot.queueUpdater.Update(s, i.GuildID); err != nil {
+		bot.Errorf("Error when editing the queuem essage: %v", err)
+		return
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "Songs have been successfully shuffled.",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
 }
