@@ -54,9 +54,9 @@ func Register(session *discordgo.Session, config *SlashCommandsConfig) error {
 	toAdd := make([]*discordgo.ApplicationCommand, 0)
 
 	for _, v := range registeredCommands {
-        if v.Type != discordgo.ChatApplicationCommand {
-            continue
-        }
+		if v.Type != discordgo.ChatApplicationCommand {
+			continue
+		}
 		del := true
 		for _, v2 := range commands {
 			if v.Name == v2.Name && v.Description == v2.Description {
