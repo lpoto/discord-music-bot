@@ -5,13 +5,13 @@ type Builder struct {
 }
 
 type Configuration struct {
-	Title       string            `yaml:"Title" validate:"required"`
-	Description string            `yaml:"Description"`
-	Footer      string            `yaml:"Footer"`
-	Components  *ComponentsConfig `yaml:"Components" validate:"required"`
+	Title       string         `yaml:"Title" validate:"required"`
+	Description string         `yaml:"Description"`
+	Footer      string         `yaml:"Footer"`
+	Buttons     *ButtonsConfig `yaml:"Buttons" validate:"required"`
 }
 
-type ComponentsConfig struct {
+type ButtonsConfig struct {
 	Backward string `yaml:"Backward" validate:"required"`
 	Forward  string `yaml:"Forward" validate:"required"`
 	Pause    string `yaml:"Pause" validate:"required"`

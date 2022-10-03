@@ -3,6 +3,9 @@ package bot
 import (
 	"context"
 	"discord-music-bot/bot/audioplayer"
+	"discord-music-bot/bot/message_command"
+	"discord-music-bot/bot/modal"
+	"discord-music-bot/bot/slash_command"
 	"discord-music-bot/bot/updater"
 	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
@@ -30,14 +33,15 @@ type Bot struct {
 }
 
 type Configuration struct {
-	LogLevel      log.Level                `yaml:"LogLevel" validate:"required"`
-	DiscordToken  string                   `yaml:"DiscordToken" validate:"required"`
-	Datastore     *datastore.Configuration `yaml:"Datastore" validate:"required"`
-	QueueBuilder  *builder.Configuration   `yaml:"QueueBuilder" validate:"required"`
-	SlashCommands *SlashCommandsConfig     `yaml:"SlashCommands" validate:"required"`
-	Modals        *ModalsConfig            `yaml:"Modals"`
-	Youtube       *youtube.Configuration   `yaml:"Youtube" validate:"required"`
-	Updater       *updater.Configuration   `yaml:"Updater" validate:"required"`
+	LogLevel        log.Level                              `yaml:"LogLevel" validate:"required"`
+	DiscordToken    string                                 `yaml:"DiscordToken" validate:"required"`
+	Datastore       *datastore.Configuration               `yaml:"Datastore" validate:"required"`
+	QueueBuilder    *builder.Configuration                 `yaml:"QueueBuilder" validate:"required"`
+	SlashCommands   *slash_command.SlashCommandsConfig     `yaml:"SlashCommands" validate:"required"`
+	Modals          *modal.ModalsConfig                    `yaml:"Modals"`
+	MessageCommands *message_command.MessageCommandsConfig `yaml:"MessageCommands" validate:"required"`
+	Youtube         *youtube.Configuration                 `yaml:"Youtube" validate:"required"`
+	Updater         *updater.Configuration                 `yaml:"Updater" validate:"required"`
 }
 
 // NewBot constructs an object that connects the logic in the
@@ -103,7 +107,19 @@ func (bot *Bot) Run() {
 	}
 
 	// Register slash commands required by the bot
-	if err := bot.setSlashCommands(session); err != nil {
+	bot.Debug("Registering global slash commands ...")
+	if err := slash_command.Register(
+		session,
+		bot.config.SlashCommands,
+	); err != nil {
+		bot.Warn(err)
+	}
+	// Register slash message required by the bot
+	bot.Debug("Registering global message commands ...")
+	if err := message_command.Register(
+		session,
+		bot.config.MessageCommands,
+	); err != nil {
 		bot.Warn(err)
 	}
 

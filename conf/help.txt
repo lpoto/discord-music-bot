@@ -22,3 +22,10 @@
     - The queue won't be deleted, click on `Join` and the bot will start playing again.
 
 **7.** Bot will disconnect if the queue message is deleted.
+
+**8.** Additional commands may be accesed by right-clicking the queue and selecting `apps/`:
+    - `Stop` deletes the queue and disconnects the bot
+    - `Resend` resends the queue message in the channel
+    - `Edit songs` opens a modal through which the songs may be removed, forwarded, skipped,...
+    - `Shuffle` shuffles all the songs in the queue
+    - `Jump` asks for a time and then jumps to that time in the currently playing song

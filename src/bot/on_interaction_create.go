@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"discord-music-bot/bot/modal"
 	"strings"
 	"time"
 
@@ -67,13 +68,28 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		case strings.TrimSpace(bot.config.SlashCommands.Help.Name):
 			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.Resend):
+			// Resend message command has been used
+			bot.onResendMessageCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.Stop):
+			// Stop message command has been used
+			bot.onStopMessageCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.EditSongs):
+			// EditSongs message command has been used
+			bot.onEditSongsMessageCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.Shuffle):
+			// Shuffle message command has been used
+			bot.onShuffleMessageCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.Jump):
+			// Jump message command has been used
+			bot.onJumpMessageCommand(s, i)
 		}
 	} else if i.Type == discordgo.InteractionModalSubmit {
 		// NOTE: a user has submited a modal in the discord server
 		// determine which modal has been submitted
 		// NOTE: no need to check voice connection, as
 		// it has already been checked in order to reach the modal
-		name := strings.TrimSpace(bot.getModalName(i.Interaction.ModalSubmitData()))
+		name := strings.TrimSpace(modal.GetModalName(i.Interaction.ModalSubmitData()))
 		switch name {
 		// add songs modal has been submited
 		case strings.TrimSpace(bot.config.Modals.AddSongs.Name):
@@ -135,7 +151,7 @@ func (bot *Bot) checkVoice(s *discordgo.Session, i *discordgo.InteractionCreate)
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "We need to be in the same voice channel!",
-				Flags: discordgo.MessageFlagsEphemeral,
+				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return false
