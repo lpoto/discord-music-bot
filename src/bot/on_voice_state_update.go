@@ -40,6 +40,11 @@ func (bot *Bot) onVoiceStateUpdate(s *discordgo.Session, i *discordgo.VoiceState
 			if err != nil {
 				bot.Errorf("Error when removing paused option: %v", err)
 			}
+			// NOTE: delete audioplayer if any
+			if ap, ok := bot.audioplayers.Get(i.GuildID); ok && ap != nil {
+				ap.Continue = false
+				ap.Stop()
+			}
 			bot.queueUpdater.NeedsUpdate(i.GuildID)
 			time.Sleep(1 * time.Second)
 			bot.queueUpdater.Update(s, i.GuildID)
