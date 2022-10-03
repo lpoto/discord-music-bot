@@ -113,7 +113,7 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 		return []discordgo.MessageComponent{
 			discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{
-					builder.newButton(builder.Config.Components.Offline, discordgo.SecondaryButton, true),
+					builder.newButton(builder.Config.Buttons.Offline, discordgo.SecondaryButton, true),
 				},
 			},
 		}
@@ -122,7 +122,7 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 		return []discordgo.MessageComponent{
 			discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{
-					builder.newButton(builder.Config.Components.Join, discordgo.SecondaryButton, false),
+					builder.newButton(builder.Config.Buttons.Join, discordgo.SecondaryButton, false),
 				},
 			},
 		}
@@ -139,18 +139,18 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
-				builder.newButton(builder.Config.Components.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
-				builder.newButton(builder.Config.Components.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
-				builder.newButton(builder.Config.Components.Previous, discordgo.SecondaryButton, queue.InactiveSize == 0 && !(queue.Size > 1 && builder.QueueHasOption(queue, model.Loop)) || builder.QueueHasOption(queue, model.Paused)),
-				builder.newButton(builder.Config.Components.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
+				builder.newButton(builder.Config.Buttons.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
+				builder.newButton(builder.Config.Buttons.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
+				builder.newButton(builder.Config.Buttons.Previous, discordgo.SecondaryButton, queue.InactiveSize == 0 && !(queue.Size > 1 && builder.QueueHasOption(queue, model.Loop)) || builder.QueueHasOption(queue, model.Paused)),
+				builder.newButton(builder.Config.Buttons.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
 			},
 		},
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
-				builder.newButton(builder.Config.Components.AddSongs, discordgo.SecondaryButton, false),
-				builder.newButton(builder.Config.Components.Loop, loopStyle, queue.Size == 0 && !builder.QueueHasOption(queue, model.Loop)),
-				builder.newButton(builder.Config.Components.Pause, pauseStyle, queue.HeadSong == nil),
-				builder.newButton(builder.Config.Components.Replay, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
+				builder.newButton(builder.Config.Buttons.AddSongs, discordgo.SecondaryButton, false),
+				builder.newButton(builder.Config.Buttons.Loop, loopStyle, queue.Size == 0 && !builder.QueueHasOption(queue, model.Loop)),
+				builder.newButton(builder.Config.Buttons.Pause, pauseStyle, queue.HeadSong == nil),
+				builder.newButton(builder.Config.Buttons.Replay, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
 			},
 		},
 	}

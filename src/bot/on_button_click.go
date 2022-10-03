@@ -17,31 +17,31 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 	bot.WithField("GuildID", i.GuildID).Tracef("Button clicked (%s)", label)
 
 	switch label {
-	case bot.builder.Config.Components.AddSongs:
+	case bot.builder.Config.Buttons.AddSongs:
 		bot.addSongs(s, i)
 		return
-	case bot.builder.Config.Components.Backward:
+	case bot.builder.Config.Buttons.Backward:
 		bot.backwardButtonClick(s, i)
 		return
-	case bot.builder.Config.Components.Forward:
+	case bot.builder.Config.Buttons.Forward:
 		bot.forwardButtonClick(s, i)
 		return
-	case bot.builder.Config.Components.Loop:
+	case bot.builder.Config.Buttons.Loop:
 		bot.loopButtonClick(s, i)
 		return
-	case bot.builder.Config.Components.Pause:
+	case bot.builder.Config.Buttons.Pause:
 		bot.pauseButtonClick(s, i)
 		return
-	case bot.builder.Config.Components.Skip:
+	case bot.builder.Config.Buttons.Skip:
 		bot.skipButtonClick(s, i)
 		return
-	case bot.builder.Config.Components.Previous:
+	case bot.builder.Config.Buttons.Previous:
 		bot.previousButtonClick(s, i)
 		return
-	case bot.builder.Config.Components.Replay:
+	case bot.builder.Config.Buttons.Replay:
 		bot.replayButtonClick(s, i)
 		return
-	case bot.builder.Config.Components.Join:
+	case bot.builder.Config.Buttons.Join:
 		bot.joinButtonClick(s, i)
 		return
 	default:
