@@ -157,7 +157,7 @@ func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error 
 			}
 		}
 	}
-	if err != nil {
+	if err == nil {
 		updater.mutex.Lock()
 		updater.lastUpdated[guildID] = time.Now()
 		updater.mutex.Unlock()
