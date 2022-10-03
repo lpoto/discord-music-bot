@@ -7,12 +7,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// onAddSongsComamnd is a handler function called when the bot's
-// add songs command is called from queue message's context menu.
-// This is called from AddSongs button click or music slash command
-// if the queue already exists in the server
-func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	bot.WithField("GuildID", i.GuildID).Trace("Add songs message command")
+// addSongs responds to the provided interaction with the
+// add songs modal.
+func (bot *Bot) addSongs(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	bot.WithField("GuildID", i.GuildID).Trace("Send add songs modal")
+
 	m := bot.getModal(
 		bot.config.Modals.AddSongs.Name,
 		bot.addSongsComponents(),
@@ -32,7 +31,9 @@ func (bot *Bot) onAddSongsCommand(s *discordgo.Session, i *discordgo.Interaction
 			"Error when responding with add songs modal: %v",
 			err,
 		)
+		return err
 	}
+	return nil
 }
 
 func (bot *Bot) addSongsComponents() []discordgo.MessageComponent {

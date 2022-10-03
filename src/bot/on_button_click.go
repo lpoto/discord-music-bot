@@ -18,7 +18,7 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 
 	switch label {
 	case bot.builder.Config.Components.AddSongs:
-		bot.onAddSongsCommand(s, i)
+		bot.addSongs(s, i)
 		return
 	case bot.builder.Config.Components.Backward:
 		bot.backwardButtonClick(s, i)
