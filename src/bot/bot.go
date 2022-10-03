@@ -20,17 +20,17 @@ import (
 
 type Bot struct {
 	*log.Logger
-	ctx            context.Context
-	ready          bool
-	service        *service.Service
-	builder        *builder.Builder
-	datastore      *datastore.Datastore
-	youtubeClient  *youtube.YoutubeClient
-	audioplayers   *audioplayer.AudioPlayersMap
-	queueUpdater   *updater.QueueUpdater
-    blockedCommands *blocked_command.BlockedCommands
-	config         *Configuration
-	helpContent    string
+	ctx             context.Context
+	ready           bool
+	service         *service.Service
+	builder         *builder.Builder
+	datastore       *datastore.Datastore
+	youtubeClient   *youtube.YoutubeClient
+	audioplayers    *audioplayer.AudioPlayersMap
+	queueUpdater    *updater.QueueUpdater
+	blockedCommands *blocked_command.BlockedCommands
+	config          *Configuration
+	helpContent     string
 }
 
 type Configuration struct {
@@ -53,17 +53,17 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 	l.Debug("Creating Discord music bot ...")
 
 	bot := &Bot{
-		ctx:            ctx,
-		Logger:         l,
-		ready:          false,
-		service:        service.NewService(),
-		builder:        builder.NewBuilder(config.QueueBuilder),
-		datastore:      datastore.NewDatastore(config.Datastore),
-		youtubeClient:  youtube.NewYoutubeClient(config.Youtube),
-		config:         config,
-		audioplayers:   audioplayer.NewAudioPlayersMap(),
-        blockedCommands: blocked_command.NewBlockedCommands(),
-		helpContent:    help,
+		ctx:             ctx,
+		Logger:          l,
+		ready:           false,
+		service:         service.NewService(),
+		builder:         builder.NewBuilder(config.QueueBuilder),
+		datastore:       datastore.NewDatastore(config.Datastore),
+		youtubeClient:   youtube.NewYoutubeClient(config.Youtube),
+		config:          config,
+		audioplayers:    audioplayer.NewAudioPlayersMap(),
+		blockedCommands: blocked_command.NewBlockedCommands(),
+		helpContent:     help,
 	}
 	bot.queueUpdater = updater.NewQueueUpdater(bot.builder, bot.datastore, bot.audioplayers)
 	l.Info("Discord music bot created")
