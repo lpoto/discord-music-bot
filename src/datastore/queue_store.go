@@ -92,7 +92,7 @@ func (datastore *Datastore) UpdateQueue(queue *model.Queue) error {
 	}
 	datastore.WithField(
 		"Latency", time.Since(t),
-	).Tracef("[%d]Done : Queeu updated", i)
+	).Tracef("[%d]Done : Queue updated", i)
 	return nil
 }
 
