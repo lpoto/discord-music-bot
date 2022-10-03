@@ -68,6 +68,15 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		case strings.TrimSpace(bot.config.SlashCommands.Help.Name):
 			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.Resend):
+			// Resend message command has been used
+			bot.onResendMessageCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.Stop):
+			// Stop message command has been used
+			bot.onStopMessageCommand(s, i)
+		case strings.TrimSpace(bot.config.MessageCommands.EditSongs):
+			// EditSongs message command has been used
+			bot.onEditSongsMessageCommand(s, i)
 		}
 	} else if i.Type == discordgo.InteractionModalSubmit {
 		// NOTE: a user has submited a modal in the discord server
