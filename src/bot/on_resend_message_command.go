@@ -9,6 +9,12 @@ import (
 // onResendMessageCommand is a handler function called when the name of interaction's
 // application command data matches the registered Resend global message command.
 func (bot *Bot) onResendMessageCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if bot.blockedCommands.IsBlocked(i.GuildID, "RESEND") {
+		return
+	}
+	bot.blockedCommands.Block(i.GuildID, "RESEND")
+	defer bot.blockedCommands.Unblock(i.GuildID, "RESEND")
+
 	queue, err := bot.datastore.GetQueue(
 		s.State.User.ID,
 		i.GuildID,
