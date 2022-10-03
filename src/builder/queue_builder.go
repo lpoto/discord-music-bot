@@ -192,6 +192,9 @@ func (builder *Builder) getPlaybackPositionBar(duration int, position int) strin
 	if duration < 10 {
 		return ""
 	}
+	if position > duration+10 {
+		return ""
+	}
 	s1 := builder.secondsToTimeString(position)
 	s2 := builder.secondsToTimeString(duration)
 	n := 15

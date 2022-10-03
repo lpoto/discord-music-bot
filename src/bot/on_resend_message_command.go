@@ -1,6 +1,10 @@
 package bot
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"time"
+
+	"github.com/bwmarrin/discordgo"
+)
 
 // onResendMessageCommand is a handler function called when the name of interaction's
 // application command data matches the registered Resend global message command.
@@ -22,7 +26,11 @@ func (bot *Bot) onResendMessageCommand(s *discordgo.Session, i *discordgo.Intera
 	toDeleteMessageID := queue.MessageID
 	toDeleteChannelID := queue.ChannelID
 
-	embed := bot.builder.MapQueueToEmbed(queue, 0)
+	playbackPosition := 0
+	if ap, ok := bot.audioplayers.Get(i.GuildID); ok && ap != nil {
+		playbackPosition = int(ap.PlaybackPosition().Truncate(time.Second).Seconds())
+	}
+	embed := bot.builder.MapQueueToEmbed(queue, playbackPosition)
 	components := bot.builder.GetMusicQueueComponents(queue)
 
 	err = s.InteractionRespond(
