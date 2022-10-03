@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"discord-music-bot/bot/audioplayer"
+	"discord-music-bot/bot/blocked_command"
 	"discord-music-bot/bot/message_command"
 	"discord-music-bot/bot/modal"
 	"discord-music-bot/bot/slash_command"
@@ -27,7 +28,7 @@ type Bot struct {
 	youtubeClient  *youtube.YoutubeClient
 	audioplayers   *audioplayer.AudioPlayersMap
 	queueUpdater   *updater.QueueUpdater
-	blockedButtons map[string]map[string]struct{}
+    blockedCommands *blocked_command.BlockedCommands
 	config         *Configuration
 	helpContent    string
 }
@@ -61,7 +62,7 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 		youtubeClient:  youtube.NewYoutubeClient(config.Youtube),
 		config:         config,
 		audioplayers:   audioplayer.NewAudioPlayersMap(),
-		blockedButtons: make(map[string]map[string]struct{}),
+        blockedCommands: blocked_command.NewBlockedCommands(),
 		helpContent:    help,
 	}
 	bot.queueUpdater = updater.NewQueueUpdater(bot.builder, bot.datastore, bot.audioplayers)

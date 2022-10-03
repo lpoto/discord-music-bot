@@ -18,6 +18,7 @@ func (service *Service) ShuffleSongs(songs []*model.Song) []*model.Song {
 	minPos, minID := -1, -1
 	for _, song := range songs {
 		if minID == -1 || song.Position < minPos {
+
 			minPos, minID = song.Position, int(song.ID)
 		}
 	}
@@ -26,7 +27,7 @@ func (service *Service) ShuffleSongs(songs []*model.Song) []*model.Song {
 			continue
 		}
 		song2 := songs[rand.Intn(len(songs))]
-		for song2.ID != uint(minID) {
+		for song2.ID == uint(minID) {
 			song2 = songs[rand.Intn(len(songs))]
 		}
 		temp := song.Position

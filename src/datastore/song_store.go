@@ -145,27 +145,20 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 
 	s := `
     UPDATE "song" as s set
-        position = s2.position,
-        name = s2.name,
-        short_name = s2.short_name,
-        url = s2.url,
-        duration_seconds = s2.duration_seconds,
-        duration_string = s2.duration_string,
-        color = s2.color,
+        position = s2.position::integer,
+        name = s2.name::varchar,
+        short_name = s2.short_name::varchar,
+        url = s2.url::varchar,
+        duration_seconds = s2.duration_seconds::integer,
+        duration_string = s2.duration_string::varchar,
+        color = s2.color::integer
     FROM (
         VALUES
     `
-	used := make(map[uint]struct{})
-	idx := 0
 	params := make([]interface{}, 0)
 	p := 1
-	for _, song := range songs {
-		if _, ok := used[song.ID]; ok {
-			continue
-		}
-		used[song.ID] = struct{}{}
-		idx++
-		if idx > 1 {
+	for i, song := range songs {
+		if i > 0 {
 			s += ","
 		}
 		params = append(params, song.ID)
@@ -188,7 +181,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
             id, position, name, short_name, url, duration_seconds,
             duration_string, color
         )
-    WHERE s.id = s2.id;
+        WHERE s.id = s2.id::integer;
     `
 	if _, err := datastore.Exec(s, params...); err != nil {
 		datastore.Tracef("[%d]Error: %v", i, err)
@@ -196,7 +189,7 @@ func (datastore *Datastore) UpdateSongs(songs []*model.Song) error {
 	}
 	datastore.WithField(
 		"Latency", time.Since(t),
-	).Tracef("[%d]Done : Songs updated", i)
+	).Infof("[%d]Done : Songs updated", i)
 	return nil
 }
 
