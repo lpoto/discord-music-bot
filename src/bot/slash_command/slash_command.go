@@ -1,4 +1,4 @@
-package bot
+package slash_command
 
 import (
 	"errors"
@@ -17,23 +17,22 @@ type SlashCommandsConfig struct {
 	Help  *ChatCommandConfig `yaml:"Help" validate:"required"`
 }
 
-// setSlashCommands deletes all of the bot's previously
-// registers slash commands, then registers the new
-// music and help slash commands
-func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
-	bot.Debug("Registering global application commands ...")
+// Register deletes all of the bot's previously
+// registered gloabal slash commands, then registers the new
+// music and help global slash commands.
+func Register(session *discordgo.Session, config *SlashCommandsConfig) error {
 	// NOTE: guildID  is an empty string, so the commands are
 	// global
 	guildID := ""
 
 	commands := []*discordgo.ApplicationCommand{
 		{
-			Name:        bot.config.SlashCommands.Music.Name,
-			Description: bot.config.SlashCommands.Music.Description,
+			Name:        config.Music.Name,
+			Description: config.Music.Description,
 		},
 		{
-			Name:        bot.config.SlashCommands.Help.Name,
-			Description: bot.config.SlashCommands.Help.Description,
+			Name:        config.Help.Name,
+			Description: config.Help.Description,
 		},
 	}
 	// fetch all global application commands defined by
@@ -80,9 +79,6 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 	}
 	// delete the fetched global application commands
 	for _, v := range toDelete {
-		bot.WithField("Name", v.Name).Trace(
-			"Deleting global application command",
-		)
 		if err := session.ApplicationCommandDelete(
 			session.State.User.ID,
 			guildID,
@@ -100,9 +96,6 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 	}
 	// register the global application commands
 	for _, cmd := range toAdd {
-		bot.WithField("Name", cmd.Name).Trace(
-			"Registering global application command",
-		)
 		if _, err := session.ApplicationCommandCreate(
 			session.State.User.ID,
 			guildID,
@@ -118,6 +111,5 @@ func (bot *Bot) setSlashCommands(session *discordgo.Session) error {
 			return e
 		}
 	}
-	bot.Debug("Successfully registered global application commands")
 	return nil
 }
