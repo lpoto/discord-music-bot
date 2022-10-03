@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"discord-music-bot/bot/audioplayer"
+	"discord-music-bot/bot/modal"
 	"discord-music-bot/bot/updater"
 	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
@@ -35,7 +36,7 @@ type Configuration struct {
 	Datastore     *datastore.Configuration `yaml:"Datastore" validate:"required"`
 	QueueBuilder  *builder.Configuration   `yaml:"QueueBuilder" validate:"required"`
 	SlashCommands *SlashCommandsConfig     `yaml:"SlashCommands" validate:"required"`
-	Modals        *ModalsConfig            `yaml:"Modals"`
+	Modals        *modal.ModalsConfig      `yaml:"Modals"`
 	Youtube       *youtube.Configuration   `yaml:"Youtube" validate:"required"`
 	Updater       *updater.Configuration   `yaml:"Updater" validate:"required"`
 }

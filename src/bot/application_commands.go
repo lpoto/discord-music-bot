@@ -12,19 +12,9 @@ type ChatCommandConfig struct {
 	Description string `yaml:"Description" validate:"required"`
 }
 
-type ModalConfig struct {
-	Name        string `yaml:"Name" validate:"required"`
-	Label       string `yaml:"Label" validate:"required"`
-	Placeholder string `yaml:"Placeholder" validate:"required"`
-}
-
 type SlashCommandsConfig struct {
 	Music *ChatCommandConfig `yaml:"Music" validate:"required"`
 	Help  *ChatCommandConfig `yaml:"Help" validate:"required"`
-}
-
-type ModalsConfig struct {
-	AddSongs *ModalConfig `yaml:"AddSongs" validate:"required"`
 }
 
 // setSlashCommands deletes all of the bot's previously

@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"discord-music-bot/bot/modal"
 	"strings"
 	"time"
 
@@ -73,7 +74,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		// determine which modal has been submitted
 		// NOTE: no need to check voice connection, as
 		// it has already been checked in order to reach the modal
-		name := strings.TrimSpace(bot.getModalName(i.Interaction.ModalSubmitData()))
+		name := strings.TrimSpace(modal.GetModalName(i.Interaction.ModalSubmitData()))
 		switch name {
 		// add songs modal has been submited
 		case strings.TrimSpace(bot.config.Modals.AddSongs.Name):
@@ -135,7 +136,7 @@ func (bot *Bot) checkVoice(s *discordgo.Session, i *discordgo.InteractionCreate)
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "We need to be in the same voice channel!",
-				Flags: discordgo.MessageFlagsEphemeral,
+				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return false

@@ -1,7 +1,7 @@
 package bot
 
 import (
-	"strings"
+	"discord-music-bot/bot/modal"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
@@ -12,7 +12,7 @@ import (
 func (bot *Bot) addSongs(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	bot.WithField("GuildID", i.GuildID).Trace("Send add songs modal")
 
-	m := bot.getModal(
+	m := modal.GetModal(
 		bot.config.Modals.AddSongs.Name,
 		bot.addSongsComponents(),
 	)
@@ -47,23 +47,4 @@ func (bot *Bot) addSongsComponents() []discordgo.MessageComponent {
 		Required:    true,
 	}
 	return []discordgo.MessageComponent{textInput}
-}
-
-// getModal constructs a modal submit interaction data
-// with the provided components
-func (bot *Bot) getModal(name string, components []discordgo.MessageComponent) *discordgo.ModalSubmitInteractionData {
-	return &discordgo.ModalSubmitInteractionData{
-		CustomID: name + "<split>" + uuid.NewString(),
-		Components: []discordgo.MessageComponent{
-			discordgo.ActionsRow{
-				Components: components,
-			},
-		},
-	}
-}
-
-// getModalName retrieves the name of the modal from
-// it's customID
-func (bot *Bot) getModalName(data discordgo.ModalSubmitInteractionData) string {
-	return strings.Split(data.CustomID, "<split>")[0]
 }
