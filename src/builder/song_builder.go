@@ -94,7 +94,7 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 	// NOTE: Maybe canvas may be used, so the lengths are easily
 	// determine based on the pixel width
 
-	maxWidth := 13000
+	maxWidth := 12500
 	name2 := name
 	if len(name) >= 30 {
 		name2 = name[:30] + "..."
