@@ -16,9 +16,9 @@ func (datastore *Datastore) PersistQueueOptions(clientID string, guildID string,
 	if options == nil || len(options) < 1 {
 		return nil
 	}
-    if _, err := datastore.FindQueue(clientID, guildID); err != nil {
-        return nil
-    }
+	if _, err := datastore.FindQueue(clientID, guildID); err != nil {
+		return nil
+	}
 	i, t := datastore.getIdx(), time.Now()
 
 	datastore.WithFields(log.Fields{
