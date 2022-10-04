@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"discord-music-bot/builder"
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
@@ -41,7 +42,10 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		i.GuildID,
 		"", "",
 	)
-	embed := bot.builder.MapQueueToEmbed(queue, 0)
+	embed := bot.builder.MapQueueToEmbed(queue, 0, builder.QueueStateDefault)
+	components := bot.builder.GetMusicQueueComponents(
+		queue, builder.QueueStateDefault,
+	)
 
 	err := s.InteractionRespond(
 		i.Interaction,
@@ -49,7 +53,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Embeds:     []*discordgo.MessageEmbed{embed},
-				Components: bot.builder.GetMusicQueueComponents(queue),
+				Components: components,
 			},
 		})
 	if err != nil {

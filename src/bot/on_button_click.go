@@ -90,14 +90,12 @@ func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.Interacti
 func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	if _, ok := bot.blockedButtons[i.GuildID]["PAUSE"]; ok {
+	if bot.blockedCommands.IsBlocked(i.GuildID, "PAUSE") {
 		return
 	}
-	defer func() {
-		if m, ok := bot.blockedButtons[i.GuildID]; ok {
-			delete(m, "PAUSE")
-		}
-	}()
+	bot.blockedCommands.Block(i.GuildID, "PAUSE")
+	defer bot.blockedCommands.Unblock(i.GuildID, "PAUSE")
+
 	time.Sleep(300 * time.Millisecond)
 
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
@@ -129,14 +127,12 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 // and then updates the queue message
 func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
-	if _, ok := bot.blockedButtons[i.GuildID]["LOOP"]; ok {
+	if bot.blockedCommands.IsBlocked(i.GuildID, "LOOP") {
 		return
 	}
-	defer func() {
-		if m, ok := bot.blockedButtons[i.GuildID]; ok {
-			delete(m, "LOOP")
-		}
-	}()
+	bot.blockedCommands.Block(i.GuildID, "LOOP")
+	defer bot.blockedCommands.Unblock(i.GuildID, "LOOP")
+
 	time.Sleep(300 * time.Millisecond)
 
 	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
@@ -161,18 +157,11 @@ func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	if _, ok := bot.blockedButtons[i.GuildID]["SKIP"]; ok {
-		// NOTE: someone already pressed the sip button
-		// in the server.
-		// Don't allow multiple people clicking at the same
-		// time, to prevent skipping multiple songs at once
+	if bot.blockedCommands.IsBlocked(i.GuildID, "SKIP") {
 		return
 	}
-	defer func() {
-		if m, ok := bot.blockedButtons[i.GuildID]; ok {
-			delete(m, "SKIP")
-		}
-	}()
+	bot.blockedCommands.Block(i.GuildID, "SKIP")
+	defer bot.blockedCommands.Unblock(i.GuildID, "SKIP")
 
 	time.Sleep(750 * time.Millisecond)
 
@@ -186,14 +175,11 @@ func (bot *Bot) skipButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	if _, ok := bot.blockedButtons[i.GuildID]["REPLAY"]; ok {
+	if bot.blockedCommands.IsBlocked(i.GuildID, "REPLAY") {
 		return
 	}
-	defer func() {
-		if m, ok := bot.blockedButtons[i.GuildID]; ok {
-			delete(m, "REPLAY")
-		}
-	}()
+	bot.blockedCommands.Block(i.GuildID, "REPLAY")
+	defer bot.blockedCommands.Unblock(i.GuildID, "REPLAY")
 
 	ap, ok := bot.audioplayers.Get(i.GuildID)
 	if ok && ap.IsPaused() {
@@ -233,14 +219,11 @@ func (bot *Bot) replayButtonClick(s *discordgo.Session, i *discordgo.Interaction
 func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	if _, ok := bot.blockedButtons[i.GuildID]["PREVIOUS"]; ok {
+	if bot.blockedCommands.IsBlocked(i.GuildID, "PREVIOUS") {
 		return
 	}
-	defer func() {
-		if m, ok := bot.blockedButtons[i.GuildID]; ok {
-			delete(m, "PREVIOUS")
-		}
-	}()
+	bot.blockedCommands.Block(i.GuildID, "PREVIOUS")
+	defer bot.blockedCommands.Unblock(i.GuildID, "PREVIOUS")
 
 	ap, ok := bot.audioplayers.Get(i.GuildID)
 	if ok && ap.IsPaused() {
@@ -311,14 +294,6 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 func (bot *Bot) joinButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	if err := bot.datastore.RemoveQueueOptions(
-		s.State.User.ID,
-		i.GuildID,
-		model.Inactive,
-	); err != nil {
-		bot.Errorf("Error on join button click: %v", err)
-		return
-	}
 	bot.queueUpdater.NeedsUpdate(i.GuildID)
 	bot.queueUpdater.Update(s, i.GuildID)
 }

@@ -38,6 +38,7 @@ func (apm *AudioPlayersMap) Remove(guildID string) {
 func (apm *AudioPlayersMap) Get(guildID string) (*AudioPlayer, bool) {
 	apm.mutex.Lock()
 	defer apm.mutex.Unlock()
+
 	ap, ok := apm.audiopayers[guildID]
 	return ap, ok
 }

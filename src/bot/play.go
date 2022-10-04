@@ -45,28 +45,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 		return nil
 	}
 
-	_, err = s.ChannelVoiceJoin(guildID, channelID, false, false)
-	if err != nil {
-		bot.Tracef("Could not join voice: %v", err)
-		if buffer, ok := bot.queueUpdater.GetInteractionsBuffer(guildID); ok {
-		responseLoop:
-			for i := 0; i < len(buffer); i++ {
-				select {
-				case interaction := <-buffer:
-					err := s.InteractionRespond(interaction, &discordgo.InteractionResponse{
-						Type: discordgo.InteractionResponseChannelMessageWithSource,
-						Data: &discordgo.InteractionResponseData{
-							Content: "Cannot join the channel, I may be missing permissions",
-							Flags:   discordgo.MessageFlagsEphemeral,
-						},
-					})
-					if err != nil {
-						continue responseLoop
-					}
-					break responseLoop
-				}
-			}
-		}
+	if err := bot.joinVoice(s, guildID, channelID); err != nil {
 		return nil
 	}
 
@@ -171,4 +150,37 @@ func (bot *Bot) audioplayerDefaultErrorDefer(s *discordgo.Session, guildID strin
 	}
 	bot.queueUpdater.NeedsUpdate(guildID)
 	bot.queueUpdater.Update(s, guildID)
+}
+
+// joinVoice connects to the voice channel identified by the provided guilID and
+// channelID, returns error on failure. If the client is already connected to the
+// voice channel, it does not connect again.
+func (bot *Bot) joinVoice(s *discordgo.Session, guildID string, channelID string) error {
+	if vc, ok := s.VoiceConnections[guildID]; ok && vc.ChannelID == channelID {
+		return nil
+	}
+	if _, err := s.ChannelVoiceJoin(guildID, channelID, false, false); err != nil {
+		bot.Tracef("Could not join voice: %v", err)
+		if buffer, ok := bot.queueUpdater.GetInteractionsBuffer(guildID); ok {
+		responseLoop:
+			for i := 0; i < len(buffer); i++ {
+				select {
+				case interaction := <-buffer:
+					err := s.InteractionRespond(interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Cannot join the channel, I may be missing permissions",
+							Flags:   discordgo.MessageFlagsEphemeral,
+						},
+					})
+					if err != nil {
+						continue responseLoop
+					}
+					break responseLoop
+				}
+			}
+		}
+		return err
+	}
+	return nil
 }

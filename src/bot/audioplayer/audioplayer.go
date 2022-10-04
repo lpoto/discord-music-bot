@@ -223,7 +223,11 @@ streamingLoop:
 				}
 				// NOTE: the stream finished, if it lasted
 				// less than a second, retry it
-				if time.Since(t) < time.Second {
+				if song.DurationSeconds > 3 && time.Since(t) < 3*time.Second {
+					if ap.encodingSession != nil {
+						ap.encodingSession.Cleanup()
+						ap.encodingSession = nil
+					}
 					continue streamingLoop
 				}
 				if err != nil && err != io.EOF {
