@@ -19,6 +19,7 @@ type QueueUpdater struct {
 	builder            *builder.Builder
 	datastore          *datastore.Datastore
 	audioplayers       *audioplayer.AudioPlayersMap
+	ready              func() bool
 }
 
 type Configuration struct {
@@ -28,7 +29,7 @@ type Configuration struct {
 
 // NewQueueUpdater constructs a new object that
 // handles updating queues
-func NewQueueUpdater(builder *builder.Builder, datastore *datastore.Datastore, audioplayers *audioplayer.AudioPlayersMap) *QueueUpdater {
+func NewQueueUpdater(builder *builder.Builder, datastore *datastore.Datastore, audioplayers *audioplayer.AudioPlayersMap, ready func() bool) *QueueUpdater {
 	return &QueueUpdater{
 		mutex:              sync.Mutex{},
 		lastUpdated:        make(map[string]time.Time),
@@ -37,6 +38,7 @@ func NewQueueUpdater(builder *builder.Builder, datastore *datastore.Datastore, a
 		builder:            builder,
 		datastore:          datastore,
 		audioplayers:       audioplayers,
+		ready:              ready,
 	}
 }
 
@@ -110,8 +112,16 @@ func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error 
 	if ap, ok := updater.audioplayers.Get(guildID); ok {
 		position = int(ap.PlaybackPosition().Truncate(time.Second).Seconds())
 	}
-	embed := updater.builder.MapQueueToEmbed(queue, position)
-	components := updater.builder.GetMusicQueueComponents(queue)
+	state := builder.QueueStateInactive
+	if !updater.ready() {
+		state = builder.QueueStateOffline
+	} else {
+		if vc, ok := s.VoiceConnections[guildID]; ok && len(vc.ChannelID) > 0 {
+			state = builder.QueueStateDefault
+		}
+	}
+	embed := updater.builder.MapQueueToEmbed(queue, position, state)
+	components := updater.builder.GetMusicQueueComponents(queue, state)
 
 	err = nil
 

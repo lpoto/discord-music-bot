@@ -21,4 +21,8 @@ func (bot *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	// NOTE: mark the bot as ready, so the
 	// other handlers start working
 	bot.ready = true
+
+	// check if any queues should be removed from datastore
+	bot.cleanDiscordMusicQueues(s)
+
 }

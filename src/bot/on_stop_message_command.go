@@ -19,6 +19,13 @@ func (bot *Bot) onStopMessageCommand(s *discordgo.Session, i *discordgo.Interact
 		})
 		return
 	}
+	// NOTE: Defer interaction, first the bot sends "Thinking..." message then
+	// deletes it once the queue is deleted
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	defer s.InteractionResponseDelete(i.Interaction)
+
 	// NOTE: delete the queue message, the queue should then be deleted
 	// in the message_deleted handler
 	if err := s.ChannelMessageDelete(queue.ChannelID, queue.MessageID); err != nil {
@@ -33,13 +40,4 @@ func (bot *Bot) onStopMessageCommand(s *discordgo.Session, i *discordgo.Interact
 	if vc, ok := s.VoiceConnections[i.GuildID]; ok {
 		vc.Disconnect()
 	}
-	// NOTE: Notify the user that the queue has been deleted with
-	// an ephemeral message
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "The queue has been successfully deleted.",
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
 }

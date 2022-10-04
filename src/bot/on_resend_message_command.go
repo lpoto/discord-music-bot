@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"discord-music-bot/builder"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -36,8 +37,12 @@ func (bot *Bot) onResendMessageCommand(s *discordgo.Session, i *discordgo.Intera
 	if ap, ok := bot.audioplayers.Get(i.GuildID); ok && ap != nil {
 		playbackPosition = int(ap.PlaybackPosition().Truncate(time.Second).Seconds())
 	}
-	embed := bot.builder.MapQueueToEmbed(queue, playbackPosition)
-	components := bot.builder.GetMusicQueueComponents(queue)
+	embed := bot.builder.MapQueueToEmbed(
+		queue, playbackPosition, builder.QueueStateDefault,
+	)
+	components := bot.builder.GetMusicQueueComponents(
+		queue, builder.QueueStateDefault,
+	)
 
 	err = s.InteractionRespond(
 		i.Interaction,

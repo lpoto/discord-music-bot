@@ -3,10 +3,8 @@ package model
 type QueueOptionName string
 
 const (
-	Loop     QueueOptionName = "loop"     // When loop option is set, songs are pushed to the back  of the queue instead of being removed
-	Paused   QueueOptionName = "paused"   // When paused option is set, the queue's audioplayer is paused
-	Inactive QueueOptionName = "inactive" // When inactive, only join button is displayed
-	Offline  QueueOptionName = "offline"  // When inactive, only "bot is offline" button is displayed
+	Loop   QueueOptionName = "loop"   // When loop option is set, songs are pushed to the back  of the queue instead of being removed
+	Paused QueueOptionName = "paused" // When paused option is set, the queue's audioplayer is paused
 )
 
 type QueueOption struct {
@@ -36,17 +34,5 @@ func LoopOption() *QueueOption {
 func PausedOption() *QueueOption {
 	return &QueueOption{
 		Name: Paused,
-	}
-}
-
-func InactiveOption() *QueueOption {
-	return &QueueOption{
-		Name: Inactive,
-	}
-}
-
-func OfflineOption() *QueueOption {
-	return &QueueOption{
-		Name: Offline,
 	}
 }

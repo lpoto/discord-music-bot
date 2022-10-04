@@ -32,6 +32,14 @@ func (bot *Bot) onShuffleMessageCommand(s *discordgo.Session, i *discordgo.Inter
 			})
 		return
 	}
+
+	// NOTE: Defer interaction, first the bot sends "Thinking..." message then
+	// deletes it once the queue is shuffled
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	defer s.InteractionResponseDelete(i.Interaction)
+
 	t := time.Now()
 	songs = bot.service.ShuffleSongs(songs)
 	if err := bot.datastore.UpdateSongs(songs); err != nil {
@@ -45,15 +53,7 @@ func (bot *Bot) onShuffleMessageCommand(s *discordgo.Session, i *discordgo.Inter
 	}
 	bot.queueUpdater.NeedsUpdate(i.GuildID)
 	if err = bot.queueUpdater.Update(s, i.GuildID); err != nil {
-		bot.Errorf("Error when editing the queuem essage: %v", err)
+		bot.Errorf("Error when editing the queue message: %v", err)
 		return
 	}
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "Songs have been successfully shuffled.",
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
 }

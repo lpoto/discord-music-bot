@@ -64,7 +64,6 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 				return
 			}
 			bot.onMusicSlashCommand(s, i)
-			bot.play(s, i.GuildID, channelID)
 			return
 		case strings.TrimSpace(bot.config.SlashCommands.Help.Name):
 			// help slash command has been used
@@ -100,6 +99,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		switch name {
 		// add songs modal has been submited
 		case strings.TrimSpace(bot.config.Modals.AddSongs.Name):
+			bot.joinVoice(s, i.GuildID, channelID)
 			bot.onAddSongsModalSubmit(s, i)
 			bot.play(s, i.GuildID, channelID)
 			return
@@ -120,6 +120,7 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 		switch i.Interaction.MessageComponentData().ComponentType {
 		case discordgo.ButtonComponent:
 			// a button has been clicked
+			bot.joinVoice(s, i.GuildID, channelID)
 			bot.onButtonClick(s, i)
 			bot.play(s, i.GuildID, channelID)
 			return

@@ -294,14 +294,6 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 func (bot *Bot) joinButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	if err := bot.datastore.RemoveQueueOptions(
-		s.State.User.ID,
-		i.GuildID,
-		model.Inactive,
-	); err != nil {
-		bot.Errorf("Error on join button click: %v", err)
-		return
-	}
 	bot.queueUpdater.NeedsUpdate(i.GuildID)
 	bot.queueUpdater.Update(s, i.GuildID)
 }

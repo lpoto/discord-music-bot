@@ -20,26 +20,13 @@ func (bot *Bot) onVoiceStateUpdate(s *discordgo.Session, i *discordgo.VoiceState
 	if i.UserID == s.State.User.ID {
 		if i.BeforeUpdate != nil &&
 			len(i.BeforeUpdate.ChannelID) > 0 && len(i.ChannelID) == 0 {
-			// NOTE: the bot has been disconnected from voice channel
-			// mark the queue inactive
-			err := bot.datastore.PersistQueueOptions(
-				s.State.User.ID,
-				i.GuildID,
-				model.InactiveOption(),
-			)
-			if err != nil {
-				bot.Errorf("Error when persisting inactive option: %v", err)
-			}
 			// NOTE: remove paused option, so that on reconnect the
 			// bot is ready to play
-			err = bot.datastore.RemoveQueueOptions(
+			bot.datastore.RemoveQueueOptions(
 				s.State.User.ID,
 				i.GuildID,
 				model.Paused,
 			)
-			if err != nil {
-				bot.Errorf("Error when removing paused option: %v", err)
-			}
 			// NOTE: delete audioplayer if any
 			if ap, ok := bot.audioplayers.Get(i.GuildID); ok && ap != nil {
 				ap.Continue = false

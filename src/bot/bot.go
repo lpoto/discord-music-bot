@@ -11,7 +11,6 @@ import (
 	"discord-music-bot/builder"
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
-	"discord-music-bot/model"
 	"discord-music-bot/service"
 
 	"github.com/bwmarrin/discordgo"
@@ -65,7 +64,10 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 		blockedCommands: blocked_command.NewBlockedCommands(),
 		helpContent:     help,
 	}
-	bot.queueUpdater = updater.NewQueueUpdater(bot.builder, bot.datastore, bot.audioplayers)
+	bot.queueUpdater = updater.NewQueueUpdater(
+		bot.builder, bot.datastore, bot.audioplayers,
+		func() bool { return bot.ready },
+	)
 	l.Info("Discord music bot created")
 	return bot
 }
@@ -124,11 +126,9 @@ func (bot *Bot) Run() {
 		bot.Warn(err)
 	}
 
-	// check if any queues should be removed from datastore
-	bot.cleanDiscordMusicQueues(session, true)
-
 	defer func() {
-		bot.cleanDiscordMusicQueues(session, false)
+		bot.ready = false
+		bot.cleanDiscordMusicQueues(session)
 		bot.Info("Closing discord session ... ")
 		session.Close()
 	}()
@@ -172,7 +172,7 @@ func (bot *Bot) setHandlers(session *discordgo.Session) {
 // For those that exist, it marks them as paused
 // If start is true, inactive option is added to all the queues,
 // else the offline option is added
-func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session, start bool) {
+func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
 	bot.Debug("Cleaning up discord music queues ...")
 
 	queues, err := bot.datastore.FindAllQueues()
@@ -183,31 +183,6 @@ func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session, start bool) 
 		return
 	}
 	for _, queue := range queues {
-		err := bot.datastore.RemoveQueueOptions(
-			queue.ClientID,
-			queue.GuildID,
-			model.Paused,
-			model.Offline,
-		)
-		if err == nil {
-			if start {
-				err = bot.datastore.PersistQueueOptions(
-					queue.ClientID,
-					queue.GuildID,
-					model.InactiveOption(),
-				)
-			} else {
-				// NOTE: if start is false, add offline option
-				// so the queues will have offline button added
-				// until is comes back online
-				err = bot.datastore.PersistQueueOptions(
-					queue.ClientID,
-					queue.GuildID,
-					model.OfflineOption(),
-				)
-
-			}
-		}
 		if err == nil {
 			bot.queueUpdater.NeedsUpdate(queue.GuildID)
 			err = bot.queueUpdater.Update(session, queue.GuildID)

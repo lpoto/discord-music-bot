@@ -10,6 +10,14 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	QueueStateDefault  QueueState = 0
+	QueueStateInactive QueueState = 1
+	QueueStateOffline  QueueState = 2
+)
+
+type QueueState int
+
 // NewQueue constructs an object that represents a music queue
 // in a discord server. It is identified by the clientID and guildID.
 func (builder *Builder) NewQueue(clientID string, guildID string, messageID string, channelID string) *model.Queue {
@@ -35,7 +43,7 @@ func (builder *Builder) NewQueue(clientID string, guildID string, messageID stri
 // a text input, through which the songs may be added.
 // If the queue has a headSong, the playbackPosition bar will be added
 // to the embed, based on the provided playbackPosition
-func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int) *discordgo.MessageEmbed {
+func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int, state QueueState) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       builder.Config.Title,
 		Fields:      make([]*discordgo.MessageEmbedField, 0),
@@ -54,8 +62,7 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int
 		headSong := builder.WrapName(queue.HeadSong.Name)
 		duration := queue.HeadSong.DurationSeconds
 		loader := ""
-		if !builder.QueueHasOption(queue, model.Inactive) &&
-			!builder.QueueHasOption(queue, model.Offline) {
+		if state != QueueStateInactive && state != QueueStateOffline {
 			loader = builder.getPlaybackPositionBar(duration, playbackPosition)
 		}
 		if len(loader) == 0 {
@@ -108,8 +115,8 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int
 // GetMusicQueueComponents constructs a list od message components
 // that belong to the provided queue, they may vary based on
 // the queue's options
-func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.MessageComponent {
-	if builder.QueueHasOption(queue, model.Offline) {
+func (builder *Builder) GetMusicQueueComponents(queue *model.Queue, state QueueState) []discordgo.MessageComponent {
+	if state == QueueStateOffline {
 		return []discordgo.MessageComponent{
 			discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{
@@ -118,7 +125,7 @@ func (builder *Builder) GetMusicQueueComponents(queue *model.Queue) []discordgo.
 			},
 		}
 	}
-	if builder.QueueHasOption(queue, model.Inactive) {
+	if state == QueueStateInactive {
 		return []discordgo.MessageComponent{
 			discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{
