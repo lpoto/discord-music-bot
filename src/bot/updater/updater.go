@@ -266,7 +266,7 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 					}
 					updater.mutex.Lock()
 					if t, ok := updater.lastUpdated[guildID]; ok {
-						if time.Since(t) < config.Interval {
+						if time.Since(t) < config.Interval+time.Second {
 							updater.mutex.Unlock()
 							return
 						}
