@@ -3,14 +3,12 @@ package datastore
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 )
@@ -121,23 +119,4 @@ func (datastore *Datastore) getIdx() int {
 	i := datastore.idx
 	datastore.idx = ((datastore.idx + 1) % 100)
 	return i
-}
-
-func (datastore *Datastore) toPSQLArray(s string) interface {
-	driver.Valuer
-	sql.Scanner
-} {
-	l := make([]int, 0)
-	for _, c := range s {
-		l = append(l, int(c))
-	}
-	return pq.Array(l)
-}
-
-func (datastore *Datastore) toString(l []int64) string {
-	s := ""
-	for _, n := range l {
-		s += string(rune(n))
-	}
-	return s
 }

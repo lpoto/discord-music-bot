@@ -79,7 +79,6 @@ func (datastore *Datastore) PopLatestInactiveSong(clientID string, guildID strin
 	}).Tracef("[%d]Start: Pop latest inactive song", i)
 
 	song := &model.Song{}
-	name, shortName, url, durationString := []int64{}, []int64{}, []int64{}, []int64{}
 	var ignore string
 
 	if err := datastore.QueryRow(
@@ -101,16 +100,12 @@ func (datastore *Datastore) PopLatestInactiveSong(clientID string, guildID strin
 	).Scan(
 		&song.ID,
 		&song.Name, &song.ShortName, &song.Url,
+		&song.DurationSeconds, &song.DurationString,
 		&song.Color, &ignore, &ignore, &ignore,
 	); err != nil {
 		datastore.Tracef("[%d]Error: %v", i, err)
 		return nil, err
 	}
-	song.Name = datastore.toString(name)
-	song.ShortName = datastore.toString(shortName)
-	song.Url = datastore.toString(url)
-	song.DurationString = datastore.toString(durationString)
-
 	datastore.WithField(
 		"Latency",
 		time.Since(t),
