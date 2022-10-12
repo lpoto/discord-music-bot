@@ -13,12 +13,6 @@ MusicBot:
       Name: Add Songs
       Label: Enter names or urls of youtube songs
       Placeholder: "song name or url#1\nsong name or url#2\n..."
-  MessageCommands:                                                        # Commands accesed by right clicking the message then selecting apps/ (max. 5)
-    Resend: "Resend"
-    Stop: "Stop"
-    Shuffle: "Shuffle"
-    Jump: "Jump"
-    EditSongs: "Edit songs"
   QueueBuilder:                                                           # Configuration for the appearance of the music queue
     Title: Music Queue
     Description: ""
