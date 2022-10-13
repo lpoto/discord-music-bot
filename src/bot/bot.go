@@ -20,6 +20,7 @@ type Bot struct {
 	*log.Logger
 	ctx             context.Context
 	ready           bool
+	_ready          bool
 	service         *service.Service
 	builder         *builder.Builder
 	datastore       *datastore.Datastore
@@ -53,6 +54,7 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 		ctx:             ctx,
 		Logger:          l,
 		ready:           false,
+		_ready:          false,
 		service:         service.NewService(),
 		builder:         builder.NewBuilder(config.QueueBuilder),
 		datastore:       datastore.NewDatastore(config.Datastore),
@@ -64,7 +66,7 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 	}
 	bot.queueUpdater = updater.NewQueueUpdater(
 		bot.builder, bot.datastore, bot.audioplayers,
-		func() bool { return bot.ready },
+		func() bool { return bot._ready },
 	)
 	l.Info("Discord music bot created")
 	return bot
@@ -118,6 +120,7 @@ func (bot *Bot) Run() {
 
 	defer func() {
 		bot.ready = false
+		bot._ready = false
 		bot.cleanDiscordMusicQueues(session)
 		bot.Info("Closing discord session ... ")
 		session.Close()
