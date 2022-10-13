@@ -13,16 +13,19 @@ func (bot *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	s.UpdateListeningStatus(
 		"/" + bot.config.SlashCommands.Help.Name,
 	)
-	time.Sleep(time.Second)
+	bot._ready = true
+
+	// check if any queues should be removed from datastore
+	bot.cleanDiscordMusicQueues(s)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// NOTE: mark the bot as ready, so the
+	// other handlers start working
 	bot.WithFields(log.Fields{
 		"Username": r.User.Username + " #" + r.User.Discriminator,
 	}).Info("Bot ready")
 
-	// NOTE: mark the bot as ready, so the
-	// other handlers start working
 	bot.ready = true
-
-	// check if any queues should be removed from datastore
-	bot.cleanDiscordMusicQueues(s)
 
 }
