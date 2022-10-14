@@ -10,7 +10,7 @@ import (
 
 // play searches for a queue that belongs to the provided guildID
 // and starts playing it's headSong if no song is currently playing.
-func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) error {
+func (bot *Bot) play(session *discordgo.Session, guildID string, channelID string) error {
 	if len(channelID) == 0 {
 		return nil
 	}
@@ -27,7 +27,8 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 	bot.WithField("GuildID", guildID).Trace("Play request")
 
 	ap := audioplayer.NewAudioPlayer(
-		s, guildID,
+		session,
+		guildID,
 		audioplayer.NewDeferFunctions(
 			bot.audioplayerDefaultDefer,
 			bot.audioplayerDefaultErrorDefer,
@@ -37,7 +38,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 	bot.audioplayers.Add(guildID, ap)
 	defer bot.audioplayers.Remove(guildID)
 
-	queue, err := bot.datastore.GetQueue(s.State.User.ID, guildID)
+	queue, err := bot.datastore.GetQueue(session.State.User.ID, guildID)
 	if err != nil {
 		return err
 	}
@@ -45,8 +46,10 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 		return nil
 	}
 
-	if err := bot.joinVoice(s, guildID, channelID); err != nil {
-		return nil
+	if len(channelID) > 0 {
+		if err := bot.joinVoice(session, guildID, channelID); err != nil {
+			return nil
+		}
 	}
 
 	// NOTE: always play the queue's headSong,
@@ -64,6 +67,11 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 			// disconnected from the voice channel
 			return nil
 		}
+		if err.Error() == "Not connected to voice, when restarting stream" {
+			bot.queueUpdater.NeedsUpdate(guildID)
+			bot.queueUpdater.Update(session, guildID)
+			return nil
+		}
 		bot.Errorf("Error when playing: %v", err)
 	}
 
@@ -74,7 +82,7 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 		continuePlaying := ap.Continue
 		bot.audioplayers.Remove(guildID)
 		if continuePlaying {
-			return bot.play(s, guildID, channelID)
+			return bot.play(session, guildID, "")
 		}
 	}
 	return nil

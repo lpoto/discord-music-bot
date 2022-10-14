@@ -130,9 +130,8 @@ func (ap *AudioPlayer) AddDeferFunc(f func(*discordgo.Session, string)) {
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
 func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
-	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
-	if !ok {
-		return errors.New("Not connected to voice")
+	if _, ok := ap.session.VoiceConnections[ap.guildID]; !ok {
+		return errors.New("Not connected to voice when starting 'Play'")
 	}
 
 	if ap.stop {
@@ -140,9 +139,6 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 		return nil
 	}
 	ap.durationSeconds = song.DurationSeconds
-
-	voiceConnection.Speaking(true)
-	defer voiceConnection.Speaking(false)
 
 	// NOTE: try to get the best audio opus format for
 	// the youtube video belonging to the song's url,
@@ -176,75 +172,13 @@ func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song) error {
 	options.Bitrate = 96
 	options.Application = "lowdelay"
 
-	// TODO: options.AudioFilter = "maybe add some epic filters"
-
-	err = nil
-	f := ap.funcs.onFailure
-
-streamingLoop:
-	// NOTE: try to run the stream 3 times in case
-	// something went wrong with encoding and the stream finished
-	// with an error in less than a second
-	for i := 0; i < 3; i++ {
-		if ap.stop {
-			f = ap.funcs.getDeferFunc()
-			break streamingLoop
-		}
-
-		ap.encodingSession, err = dca.EncodeFile(streamUrl, options)
-		if err != nil {
-			continue streamingLoop
-		}
-		defer func() {
-		}()
-
-		done := ctx.Done()
-
-		streamDone := make(chan error)
-		ap.streamingSession = dca.NewStream(
-			ap.encodingSession,
-			voiceConnection,
-			streamDone,
-		)
-
-		t := time.Now()
-
-		for {
-			select {
-			case <-done:
-				err, f = nil, ap.funcs.getDeferFunc()
-				break streamingLoop
-			case err = <-streamDone:
-				if err.Error() == "Voice connection closed" {
-					// NOTE: if voice connection has been closed,
-					// just stop without calling any defer functions
-					f = nil
-					break streamingLoop
-				}
-				// NOTE: the stream finished, if it lasted
-				// less than a second, retry it
-				if song.DurationSeconds > 3 && time.Since(t) < 3*time.Second {
-					if ap.encodingSession != nil {
-						ap.encodingSession.Cleanup()
-						ap.encodingSession = nil
-					}
-					continue streamingLoop
-				}
-				if err != nil && err != io.EOF {
-					f = ap.funcs.onFailure
-					break streamingLoop
-				}
-				// NOTE: the stream finished successfully
-				err, f = nil, ap.funcs.getDeferFunc()
-				break streamingLoop
-			default:
-				if ap.stop {
-					err, f = nil, ap.funcs.getDeferFunc()
-					break streamingLoop
-				}
-			}
-		}
+	ap.encodingSession, err = dca.EncodeFile(streamUrl, options)
+	if err != nil {
+		return err
 	}
+
+	f, err := ap.startStream(ctx, song, 0, nil)
+
 	if ap.encodingSession != nil {
 		ap.encodingSession.Cleanup()
 	}
@@ -257,6 +191,69 @@ streamingLoop:
 	}
 
 	return err
+}
+
+// startStream uses the audioplayer's encodingSession and starts the stream,
+// then returns the defer function that should be called on finish and error if any
+func (ap *AudioPlayer) startStream(ctx context.Context, song *model.Song, retry int, err error) (func(*discordgo.Session, string), error) {
+	if ap.stop {
+		return ap.funcs.getDeferFunc(), nil
+	}
+	if retry > 3 {
+		return ap.funcs.onFailure, err
+	}
+
+	done := ctx.Done()
+
+	voiceConnection, ok := ap.session.VoiceConnections[ap.guildID]
+	if !ok {
+		err = errors.New("Not connected to voice, when restarting stream")
+		return nil, err
+	}
+	voiceConnection.Speaking(true)
+	defer voiceConnection.Speaking(false)
+
+	streamDone := make(chan error)
+	ap.streamingSession = dca.NewStream(
+		ap.encodingSession,
+		voiceConnection,
+		streamDone,
+	)
+
+	t := time.Now()
+
+	for {
+		select {
+		case <-done:
+			return ap.funcs.getDeferFunc(), nil
+		case err = <-streamDone:
+			if err.Error() == "Voice connection closed" {
+				// NOTE: if voice connection has been closed,
+				// just stop without calling any defer functions
+
+				time.Sleep(100 * time.Millisecond)
+				return ap.startStream(ctx, song, retry+1, err)
+			}
+			// NOTE: the stream finished, if it lasted
+			// less than a second, retry it
+			if song.DurationSeconds > 3 && time.Since(t) < 3*time.Second {
+				if ap.encodingSession != nil {
+					ap.encodingSession.Cleanup()
+					ap.encodingSession = nil
+				}
+				return ap.startStream(ctx, song, retry+1, err)
+			}
+			if err != nil && err != io.EOF {
+				return ap.funcs.onFailure, err
+			}
+			// NOTE: the stream finished successfully
+			return ap.funcs.getDeferFunc(), nil
+		default:
+			if ap.stop {
+				return ap.funcs.getDeferFunc(), nil
+			}
+		}
+	}
 }
 
 // getStreamFormat gets the youtube video belonging to the provided
@@ -275,40 +272,12 @@ func (ap *AudioPlayer) getStreamFormat(url string) (*youtube.Video, *youtube.For
 		formats = formats2
 	}
 	// NOTE: try to get audio formats with opus codecs
-	formats2 := make(youtube.FormatList, 0)
-	for _, f := range formats {
-		t := f.MimeType
-		if strings.Contains(t, "opus") && strings.Contains(t, "audio") {
-			formats2 = append(formats2, f)
-		}
-	}
-	formats = formats2
+	formats = ap.filterStreamFormatsByMimeType(formats)
 	// NOTE: try to get the best possible audio quality
-	formats2 = make(youtube.FormatList, 0)
-	for _, f := range formats {
-		if f.AudioQuality == "AUDIO_QUALITY_HIGH" {
-			formats2 = append(formats2, f)
-		}
-	}
-	if len(formats2) == 0 {
-		for _, f := range formats {
-			if f.AudioQuality == "AUDIO_QUALITY_MEDIUM" {
-				formats2 = append(formats2, f)
-			}
-		}
-	}
-	if len(formats2) > 0 {
-		formats = formats2
-	}
+	formats = ap.filterStreamFormatsByAudioQuality(formats)
 	// NOTE: try to get the smallest possible video size
 	// as video quality is unimportant
-	if formats2 := formats.Quality("tiny"); len(formats2) > 0 {
-		formats = formats2
-	} else if formats2 := formats.Quality("small"); len(formats2) > 0 {
-		formats = formats2
-	} else if formats2 := formats.Quality("medium"); len(formats2) > 0 {
-		formats = formats2
-	}
+	formats = ap.filterStreamFOrmatsByQuality(formats)
 	if len(formats) == 0 {
 		return nil, nil, errors.New("No formats found")
 	}
@@ -337,4 +306,49 @@ func (f *DeferFunctions) getDeferFunc() func(*discordgo.Session, string) {
 			return
 		}
 	}
+}
+
+func (ap *AudioPlayer) filterStreamFormatsByAudioQuality(formats youtube.FormatList) youtube.FormatList {
+	formats2 := make(youtube.FormatList, 0)
+	for _, f := range formats {
+		if f.AudioQuality == "AUDIO_QUALITY_HIGH" {
+			formats2 = append(formats2, f)
+		}
+	}
+	if len(formats2) == 0 {
+		for _, f := range formats {
+			if f.AudioQuality == "AUDIO_QUALITY_MEDIUM" {
+				formats2 = append(formats2, f)
+			}
+		}
+	}
+	if len(formats2) > 0 {
+		return formats2
+	}
+	return formats
+}
+
+func (ap *AudioPlayer) filterStreamFormatsByMimeType(formats youtube.FormatList) youtube.FormatList {
+	formats2 := make(youtube.FormatList, 0)
+	for _, f := range formats {
+		t := f.MimeType
+		if strings.Contains(t, "opus") && strings.Contains(t, "audio") {
+			formats2 = append(formats2, f)
+		}
+	}
+	if len(formats2) > 0 {
+		return formats2
+	}
+	return formats
+}
+
+func (ap *AudioPlayer) filterStreamFOrmatsByQuality(formats youtube.FormatList) youtube.FormatList {
+	if formats2 := formats.Quality("tiny"); len(formats2) > 0 {
+		formats = formats2
+	} else if formats2 := formats.Quality("small"); len(formats2) > 0 {
+		formats = formats2
+	} else if formats2 := formats.Quality("medium"); len(formats2) > 0 {
+		formats = formats2
+	}
+	return formats
 }
