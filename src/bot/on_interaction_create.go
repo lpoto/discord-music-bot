@@ -65,6 +65,9 @@ func (bot *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 			}
 			bot.onMusicSlashCommand(s, i)
 			return
+		case strings.TrimSpace(bot.config.SlashCommands.Stop.Name):
+			bot.onStopSlashCommand(s, i)
+            return
 		case strings.TrimSpace(bot.config.SlashCommands.Help.Name):
 			// help slash command has been used
 			bot.onHelpSlashCommand(s, i)

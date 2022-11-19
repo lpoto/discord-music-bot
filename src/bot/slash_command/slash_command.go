@@ -3,6 +3,7 @@ package slash_command
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -14,6 +15,7 @@ type ChatCommandConfig struct {
 
 type SlashCommandsConfig struct {
 	Music *ChatCommandConfig `yaml:"Music" validate:"required"`
+	Stop  *ChatCommandConfig `yaml:"Stop" validate:"required"`
 	Help  *ChatCommandConfig `yaml:"Help" validate:"required"`
 }
 
@@ -25,16 +27,19 @@ func Register(session *discordgo.Session, config *SlashCommandsConfig) error {
 	// global
 	guildID := ""
 
-	commands := []*discordgo.ApplicationCommand{
-		{
-			Name:        config.Music.Name,
-			Description: config.Music.Description,
-		},
-		{
-			Name:        config.Help.Name,
-			Description: config.Help.Description,
-		},
+	r := reflect.ValueOf(*config)
+
+	commands := make([]*discordgo.ApplicationCommand, 0)
+
+	for i := 0; i < r.NumField(); i++ {
+		name := r.Field(i).Elem().FieldByName("Name").Interface().(string)
+		desc := r.Field(i).Elem().FieldByName("Description").Interface().(string)
+		commands = append(commands, &discordgo.ApplicationCommand{
+			Name:        name,
+			Description: desc,
+		})
 	}
+
 	// fetch all global application commands defined by
 	// the bot user
 	registeredCommands, err := session.ApplicationCommands(
@@ -55,6 +60,7 @@ func Register(session *discordgo.Session, config *SlashCommandsConfig) error {
 
 	for _, v := range registeredCommands {
 		if v.Type != discordgo.ChatApplicationCommand {
+			toDelete = append(toDelete, v)
 			continue
 		}
 		del := true
