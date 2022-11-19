@@ -22,3 +22,9 @@
     - The queue won't be deleted, click on `Join` and the bot will start playing again.
 
 **7.** Bot will disconnect if the queue message is deleted.
+
+**8.** Stop the music with `/stop`. (This is only temporary)
+
+**_NOTE_** this bot is under development, more features, such as manipulating the queue
+(removing songs, forwarding, ...) etc., will be added.
+Please notify of any issues with the bot's performance: https://github.com/lpoto/discord-music-bot/issues
