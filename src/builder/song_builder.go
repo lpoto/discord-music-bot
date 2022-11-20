@@ -101,7 +101,7 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 	}
 
 	// NOTE: discord uses Uni-Sans
-	fontPath := "../assets/Discord-Font.ttf"
+	fontPath := "../asset/Discord-Font.ttf"
 	b, err := ioutil.ReadFile(fontPath)
 	if err != nil {
 		log.Error(err)
