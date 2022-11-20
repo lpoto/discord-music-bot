@@ -11,6 +11,7 @@ import (
 	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +41,7 @@ type Configuration struct {
 	SlashCommands *slash_command.SlashCommandsConfig `yaml:"SlashCommands" validate:"required"`
 	Modals        *modal.ModalsConfig                `yaml:"Modals"`
 	Youtube       *youtube.Configuration             `yaml:"Youtube" validate:"required"`
-	Updater       *updater.Configuration             `yaml:"Updater" validate:"required"`
+	MaxAloneTime  time.Duration                      `yaml:"MaxAloneTime" validate:"required"`
 }
 
 // NewBot constructs an object that connects the logic in the
@@ -66,7 +67,7 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 	}
 	bot.queueUpdater = updater.NewQueueUpdater(
 		bot.builder,
-		bot.config.Updater,
+		bot.config.MaxAloneTime,
 		bot.datastore,
 		bot.audioplayers,
 		func() bool { return bot._ready },
@@ -129,7 +130,7 @@ func (bot *Bot) Run() {
 		session.Close()
 	}()
 
-	go bot.queueUpdater.RunIntervalUpdater(bot.ctx, session)
+	go bot.queueUpdater.RunInactiveQueueUpdater(bot.ctx, session)
 	// Run loop until the context is done
 	// All logic is performed by the handlers
 	for {
