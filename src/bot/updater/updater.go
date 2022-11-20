@@ -19,17 +19,19 @@ type QueueUpdater struct {
 	builder            *builder.Builder
 	datastore          *datastore.Datastore
 	audioplayers       *audioplayer.AudioPlayersMap
+	config             *Configuration
 	ready              func() bool
 }
 
 type Configuration struct {
+	Enabled      bool          `yaml:"Enabled"`
 	Interval     time.Duration `yaml:"Interval" validate:"required"`
 	MaxAloneTime time.Duration `yaml:"MaxAloneTime" validate:"required"`
 }
 
 // NewQueueUpdater constructs a new object that
 // handles updating queues
-func NewQueueUpdater(builder *builder.Builder, datastore *datastore.Datastore, audioplayers *audioplayer.AudioPlayersMap, ready func() bool) *QueueUpdater {
+func NewQueueUpdater(builder *builder.Builder, config *Configuration, datastore *datastore.Datastore, audioplayers *audioplayer.AudioPlayersMap, ready func() bool) *QueueUpdater {
 	return &QueueUpdater{
 		mutex:              sync.Mutex{},
 		lastUpdated:        make(map[string]time.Time),
@@ -38,6 +40,7 @@ func NewQueueUpdater(builder *builder.Builder, datastore *datastore.Datastore, a
 		builder:            builder,
 		datastore:          datastore,
 		audioplayers:       audioplayers,
+		config:             config,
 		ready:              ready,
 	}
 }
@@ -84,6 +87,7 @@ func (updater *QueueUpdater) NeedsUpdate(guildID string) {
 // It first tries to update it from the interactions stored in the
 // bot's queueUpdateInteractionsBuffer, and if not successful from
 // the queue's channelID and messageID.
+// TODO: this function needs refactoring
 func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error {
 	updater.mutex.Lock()
 
@@ -120,7 +124,11 @@ func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error 
 			state = builder.QueueStateDefault
 		}
 	}
-	embed := updater.builder.MapQueueToEmbed(queue, position, state)
+	embed := updater.builder.MapQueueToEmbed(
+		queue,
+		position,
+		state == builder.QueueStateDefault && updater.config.Enabled,
+	)
 	components := updater.builder.GetMusicQueueComponents(queue, state)
 
 	err = nil
@@ -130,7 +138,6 @@ func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error 
 	updater.mutex.Unlock()
 
 	if !ok {
-
 		_, err = s.ChannelMessageEditComplex(
 			&discordgo.MessageEdit{
 				ID:         queue.MessageID,
@@ -185,10 +192,11 @@ func (updater *QueueUpdater) GetInteractionsBuffer(guildID string) (chan *discor
 // interval. Only queues with active audioplayers are updated.
 // If a queue was updated less than the interval ago, it is not updated again.
 // If a queue had no listeners for some time, the queue is marked inactive and the music stops.
-func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *discordgo.Session, config *Configuration) {
+// TODO: this function needs refactoring
+func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *discordgo.Session) {
 	done := ctx.Done()
 
-	ticker := time.NewTicker(config.Interval)
+	ticker := time.NewTicker(updater.config.Interval)
 
 	skip := make(map[string]struct{})
 	skipMutex := sync.Mutex{}
@@ -213,7 +221,7 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 
 					// NOTE: the bot has been alone in the channel
 					// for too long, mark the queue inactive and dc
-					if ok && time.Since(inactiveSince) >= config.MaxAloneTime {
+					if ok && time.Since(inactiveSince) >= updater.config.MaxAloneTime {
 						skipMutex.Lock()
 						// NOTE: if inactive, remove the guildID from skip
 						// aswell, so we don't skip immediately when the
@@ -251,6 +259,10 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 						}
 					}(guildID)
 
+					// NOTE: update only if update config enabled
+					if updater.config.Enabled != true {
+						return
+					}
 					// NOTE: if guildID is in skip, don't update
 					skipMutex.Lock()
 					if _, ok := skip[guildID]; ok {
@@ -261,12 +273,12 @@ func (updater *QueueUpdater) RunIntervalUpdater(ctx context.Context, session *di
 					skipMutex.Unlock()
 					if ap, ok := updater.audioplayers.Get(
 						guildID,
-					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second) < config.Interval {
+					); !ok || ap.IsPaused() || ap.TimeLeft()+(time.Second) < updater.config.Interval {
 						return
 					}
 					updater.mutex.Lock()
 					if t, ok := updater.lastUpdated[guildID]; ok {
-						if time.Since(t) < config.Interval+time.Second {
+						if time.Since(t) < updater.config.Interval+time.Second {
 							updater.mutex.Unlock()
 							return
 						}
