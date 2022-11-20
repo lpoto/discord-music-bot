@@ -13,6 +13,7 @@ There are plans for adding more features such as:
    - Better handling for stoping and clearing the queue
    - Shuffling songs and jumping forward in the current song
    - Skipping multiple songs
+   - Resending the queue in the channel
    - Writing custom commands for the current queue
 
 ## Developing the bot
