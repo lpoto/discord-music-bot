@@ -42,7 +42,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		i.GuildID,
 		"", "",
 	)
-	embed := bot.builder.MapQueueToEmbed(queue, 0, builder.QueueStateDefault)
+	embed := bot.builder.MapQueueToEmbed(queue, 0, bot.config.Updater.Enabled)
 	components := bot.builder.GetMusicQueueComponents(
 		queue, builder.QueueStateDefault,
 	)

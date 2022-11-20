@@ -65,7 +65,10 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 		helpContent:     help,
 	}
 	bot.queueUpdater = updater.NewQueueUpdater(
-		bot.builder, bot.datastore, bot.audioplayers,
+		bot.builder,
+		bot.config.Updater,
+		bot.datastore,
+		bot.audioplayers,
 		func() bool { return bot._ready },
 	)
 	l.Info("Discord music bot created")
@@ -126,7 +129,7 @@ func (bot *Bot) Run() {
 		session.Close()
 	}()
 
-	go bot.queueUpdater.RunIntervalUpdater(bot.ctx, session, bot.config.Updater)
+	go bot.queueUpdater.RunIntervalUpdater(bot.ctx, session)
 	// Run loop until the context is done
 	// All logic is performed by the handlers
 	for {

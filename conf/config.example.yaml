@@ -1,13 +1,16 @@
 MusicBot:
-  LogLevel: DEBUG                                                        # default log level for the music bot
-  DiscordToken: discord_bot_token                                        # the authentication token for the bot
-  SlashCommands:                                                         # Global slash commands created by the bot
-    Music:                                                               # Slash command that initializes a new music queue in the server
+  LogLevel: DEBUG                                                         # default log level for the music bot
+  DiscordToken: discord_bot_token                                         # the authentication token for the bot
+  SlashCommands:                                                          # Global slash commands created by the bot
+    Music:                                                                # Slash command that initializes a new music queue in the server
       Name: music
       Description: "Life is one grand, sweet song so start the music."
-    Help:                                                                # Slash command that send information about the bot, read from a text file
+    Help:                                                                 # Slash command that send information about the bot, read from a text file
       Name: help
       Description: "Info about using the music bot"
+    Stop:                                                                 # Slash command for stopping the bot
+      Name: stop
+      Description: "Stop the music"
   Modals:                                                                 # Modals created by the bot
     AddSongs:                                                             # Modal, accessed by clicking the "AddSongs"  button
       Name: Add Songs
@@ -29,6 +32,7 @@ MusicBot:
       Join: "Join"
       Offline: "The bot is currently offline"
   Updater:                                                                # Updater handles editing the queue, at interval and when clicking on the buttons or adding songs
+    Enabled: true                                                         # When false, playback position bar will be disabled
     Interval: 5s                                                          # do not set under 5s
     MaxAloneTime: 2m                                                      # time after the bot leaves, if it's alone in the channel
   Youtube:

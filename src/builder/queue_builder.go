@@ -43,7 +43,7 @@ func (builder *Builder) NewQueue(clientID string, guildID string, messageID stri
 // a text input, through which the songs may be added.
 // If the queue has a headSong, the playbackPosition bar will be added
 // to the embed, based on the provided playbackPosition
-func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int, state QueueState) *discordgo.MessageEmbed {
+func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int, playbackPositionBarEnabled bool) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       builder.Config.Title,
 		Fields:      make([]*discordgo.MessageEmbedField, 0),
@@ -62,7 +62,7 @@ func (builder *Builder) MapQueueToEmbed(queue *model.Queue, playbackPosition int
 		headSong := builder.WrapName(queue.HeadSong.Name)
 		duration := queue.HeadSong.DurationSeconds
 		loader := ""
-		if state != QueueStateInactive && state != QueueStateOffline {
+		if QueueState(playbackPosition) != QueueStateInactive && playbackPositionBarEnabled == true {
 			loader = builder.getPlaybackPositionBar(duration, playbackPosition)
 		}
 		if len(loader) == 0 {
