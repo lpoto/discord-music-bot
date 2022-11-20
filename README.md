@@ -3,7 +3,7 @@
 A simple, easy to use discord bot, intended for playing youtube songs.
 
 **_NOTE_** this bot is under development, more features, such as manipulating the queue
-(removing songs, forwarding, ...) etc., will be added.
+(removing songs, forwarding, ...), handling permissions etc., will be added.
 Please notify of any issues with the bot's performance.
 
 ## Running the bot locally
