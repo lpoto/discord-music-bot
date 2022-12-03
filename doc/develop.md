@@ -11,8 +11,9 @@
 
 ## Prerequisites
 
-1. Create the file `./src/config.yaml` and copy the contents from [./conf/config.example.yaml](./conf/config.example.yaml)
-2. Replace `DiscordToken` value with your [discord bot token](#creating-a-discord-bot-token)
+1. Create the file `./src/config.yaml` then copy and modify the contents
+   from [./conf/config.example.yaml](./conf/config.example.yaml).
+2. Make sure the datastore values match an existing postgresql instance.
 3. Update [help.txt](./conf/help.txt) if necessary.
 
 ## Running the bot inside a docker container
@@ -24,22 +25,6 @@ docker-compose -f .dockerenv/docker-compose.yaml up
 ## Running the bot without docker
 
 1. Run the postgres container (or set it up locally without the docker):
-
-```bash
-docker-compose -f .dockerenv/docker-compose.postgres.yaml up -d
-```
-
-2. Export the postgres variables that match the env. variables in [docker-compose.postgres.yaml](./.dockerenv/docker-compose.postgres.yaml):
-
-```bash
-export POSTGRES_DB=postgres
-export POSTGRES_HOST=localhost
-export POSTGRES_PORT=5432
-export POSTGRES_USER=postgres
-export POSTGRES_PASSWORD=postgres
-```
-
-3. Run the bot:
 
 ```bash
 cd ./src
