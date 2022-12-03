@@ -60,9 +60,9 @@ func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCrea
 func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
 	bot.service.IncrementQueueOffset(queue)
-	if err := bot.datastore.UpdateQueue(queue); err != nil {
+	if err := bot.datastore.Queue().UpdateQueue(queue); err != nil {
 		bot.Errorf("Error on forward button click: %v", err)
 		return
 	}
@@ -75,9 +75,9 @@ func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.Interactio
 func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
 	bot.service.DecrementQueueOffset(queue)
-	if err := bot.datastore.UpdateQueue(queue); err != nil {
+	if err := bot.datastore.Queue().UpdateQueue(queue); err != nil {
 		bot.Errorf("Error on backward button click: %v", err)
 		return
 	}
@@ -98,9 +98,9 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 
 	time.Sleep(300 * time.Millisecond)
 
-	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
 	if bot.builder.QueueHasOption(queue, model.Paused) {
-		bot.datastore.RemoveQueueOptions(
+		bot.datastore.Queue().RemoveQueueOptions(
 			queue.ClientID,
 			queue.GuildID,
 			model.Paused,
@@ -109,7 +109,7 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 			ap.Unpause()
 		}
 	} else {
-		bot.datastore.PersistQueueOptions(
+		bot.datastore.Queue().PersistQueueOptions(
 			queue.ClientID,
 			queue.GuildID,
 			model.PausedOption(),
@@ -135,15 +135,15 @@ func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 
 	time.Sleep(300 * time.Millisecond)
 
-	queue, _ := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
 	if bot.builder.QueueHasOption(queue, model.Loop) {
-		bot.datastore.RemoveQueueOptions(
+		bot.datastore.Queue().RemoveQueueOptions(
 			queue.ClientID,
 			queue.GuildID,
 			model.Loop,
 		)
 	} else {
-		bot.datastore.PersistQueueOptions(
+		bot.datastore.Queue().PersistQueueOptions(
 			queue.ClientID,
 			queue.GuildID,
 			model.LoopOption(),
@@ -229,7 +229,12 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	if ok && ap.IsPaused() {
 		return
 	}
-	queue, err := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	queue, err := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
+	if err != nil {
+		bot.Errorf("Error on previous button click: %v", err)
+		return
+	}
+	queue, err = bot.datastore.Song().UpdateQueueWithSongs(queue)
 	if err != nil {
 		bot.Errorf("Error on previous button click: %v", err)
 		return
@@ -245,9 +250,9 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	f := func(s *discordgo.Session, guildID string) {
 
 		if bot.builder.QueueHasOption(queue, model.Loop) {
-			bot.datastore.PushLastSongToFront(s.State.User.ID, guildID)
+			bot.datastore.Song().PushLastSongToFront(s.State.User.ID, guildID)
 		} else {
-			song, err := bot.datastore.PopLatestInactiveSong(
+			song, err := bot.datastore.Song().PopLatestInactiveSong(
 				s.State.User.ID, guildID,
 			)
 			if err != nil {
@@ -256,7 +261,7 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 				bot.queueUpdater.Update(s, guildID)
 				return
 			}
-			if err := bot.datastore.PersistSongToFront(
+			if err := bot.datastore.Song().PersistSongToFront(
 				s.State.User.ID, guildID, song,
 			); err != nil {
 				bot.Errorf("Error on previous song button click: %v", err)

@@ -56,7 +56,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 		songs[i] = bot.builder.NewSong(info)
 	}
 
-	if err := bot.datastore.PersistSongs(
+	if err := bot.datastore.Song().PersistSongs(
 		s.State.User.ID,
 		i.GuildID,
 		songs...,

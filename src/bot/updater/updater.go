@@ -102,7 +102,11 @@ func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error 
 
 	clientID := s.State.User.ID
 
-	queue, err := updater.datastore.GetQueue(clientID, guildID)
+	queue, err := updater.datastore.Queue().GetQueue(clientID, guildID)
+	if err != nil {
+		return err
+	}
+	queue, err = updater.datastore.Song().UpdateQueueWithSongs(queue)
 	if err != nil {
 		return err
 	}

@@ -22,7 +22,7 @@ func (bot *Bot) onVoiceStateUpdate(s *discordgo.Session, i *discordgo.VoiceState
 			len(i.BeforeUpdate.ChannelID) > 0 && len(i.ChannelID) == 0 {
 			// NOTE: remove paused option, so that on reconnect the
 			// bot is ready to play
-			bot.datastore.RemoveQueueOptions(
+			bot.datastore.Queue().RemoveQueueOptions(
 				s.State.User.ID,
 				i.GuildID,
 				model.Paused,

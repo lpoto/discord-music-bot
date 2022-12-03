@@ -15,7 +15,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	bot.WithField("GuildID", i.GuildID).Trace("Music slash command")
 
 	// NOTE: only a single queue may be active in a guild at once
-	if queue, err := bot.datastore.FindQueue(
+	if queue, err := bot.datastore.Queue().GetQueue(
 		s.State.User.ID,
 		i.GuildID,
 	); err == nil {
@@ -73,7 +73,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	}
 	queue.MessageID = msg.ID
 	queue.ChannelID = msg.ChannelID
-	if err := bot.datastore.PersistQueue(queue); err != nil {
+	if err := bot.datastore.Queue().PersistQueue(queue); err != nil {
 		bot.Errorf("Error when persisting a new queue: %v", err)
 		return
 	}

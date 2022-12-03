@@ -86,7 +86,7 @@ func (bot *Bot) Init() error {
 	if err := bot.datastore.Connect(); err != nil {
 		return err
 	}
-	if err := bot.datastore.Init(bot.ctx); err != nil {
+	if err := bot.datastore.Init(bot.ctx, true); err != nil {
 		return err
 	}
 	bot.Info("Bot initialized")
@@ -172,7 +172,7 @@ func (bot *Bot) setHandlers(session *discordgo.Session) {
 func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
 	bot.Debug("Cleaning up discord music queues ...")
 
-	queues, err := bot.datastore.FindAllQueues()
+	queues, err := bot.datastore.Queue().FindAllQueues()
 	if err != nil {
 		bot.Errorf(
 			"Error when checking if all queues exist: %v", err,
@@ -185,7 +185,7 @@ func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
 			err = bot.queueUpdater.Update(session, queue.GuildID)
 		}
 		if err != nil {
-			err = bot.datastore.RemoveQueue(
+			err = bot.datastore.Queue().RemoveQueue(
 				queue.ClientID,
 				queue.GuildID,
 			)

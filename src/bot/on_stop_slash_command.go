@@ -9,7 +9,7 @@ import "github.com/bwmarrin/discordgo"
 func (bot *Bot) onStopSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Stop slash command")
 
-	queue, err := bot.datastore.GetQueue(s.State.User.ID, i.GuildID)
+	queue, err := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
 	if err != nil {
 		if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -25,7 +25,7 @@ func (bot *Bot) onStopSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 		}
 		return
 	}
-    if err := s.ChannelMessageDelete(queue.ChannelID, queue.MessageID); err != nil {
+	if err := s.ChannelMessageDelete(queue.ChannelID, queue.MessageID); err != nil {
 		if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -38,8 +38,8 @@ func (bot *Bot) onStopSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 				err,
 			)
 		}
-    }
-    bot.deleteQueue(s, i.GuildID, []string{queue.MessageID})
+	}
+	bot.deleteQueue(s, i.GuildID, []string{queue.MessageID})
 
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
