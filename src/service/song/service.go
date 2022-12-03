@@ -1,14 +1,22 @@
-package service
+package song
 
 import (
 	"discord-music-bot/model"
 	"math/rand"
 )
 
+type SongService struct{}
+
+// NewSongService constructs an object that holds some
+// logic for manipulating songs.
+func NewSongService() *SongService {
+	return &SongService{}
+}
+
 // ShuffleSongs shuffles the positions of the provided songs without
 // adding any new positions or chaning any of the other fields. The position
 // of the song with the minimum position is not changed.
-func (service *Service) ShuffleSongs(songs []*model.Song) []*model.Song {
+func (service *SongService) ShuffleSongs(songs []*model.Song) []*model.Song {
 	// NOTE: no point  in shuffling less than 3 songs, as they
 	// won't be shuffled
 	if len(songs) < 3 {
