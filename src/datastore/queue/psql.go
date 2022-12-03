@@ -13,15 +13,15 @@ import (
 
 type QueueStore struct {
 	log *log.Logger
-	con *sql.DB
+	db  *sql.DB
 	idx int
 }
 
 // NewQueueStore creates an object that handles
 // persisting and removing Queues in postgres database.
-func NewQueueStore(con *sql.DB, log *log.Logger) *QueueStore {
+func NewQueueStore(db *sql.DB, log *log.Logger) *QueueStore {
 	return &QueueStore{
-		con: con,
+		db:  db,
 		log: log,
 		idx: 0,
 	}
@@ -33,6 +33,14 @@ func (store *QueueStore) Init() error {
 		return err
 	}
 	return store.createQueueOptionTable()
+}
+
+// Destroy drops the created tables for the Queue store.
+func (store *QueueStore) Destroy() error {
+	if err := store.dropQueueTable(); err != nil {
+		return err
+	}
+	return store.dropQueueOptionTable()
 }
 
 // PersistQueue saves the provided queue and returns the inserted queue.
@@ -49,7 +57,7 @@ func (store *QueueStore) PersistQueue(queue *model.Queue) error {
 
 	newQueue := &model.Queue{}
 
-	if err := store.con.QueryRow(
+	if err := store.db.QueryRow(
 		`
         INSERT INTO "queue" (
             client_id, guild_id, message_id, channel_id, "offset", "limit"
@@ -98,7 +106,7 @@ func (store *QueueStore) UpdateQueue(queue *model.Queue) error {
 		"GuildID":  queue.GuildID,
 	}).Tracef("[Q%d]Start: Update queue", i)
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         UPDATE "queue"
         SET "offset" = $3,
@@ -137,7 +145,7 @@ func (store *QueueStore) RemoveQueue(clientID string, guildID string) error {
 		"GuildID":  guildID,
 	}).Tracef("[Q%d]Start: Remove queue", i)
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         DELETE FROM "queue"
         WHERE "queue".guild_id = $1 AND
@@ -170,7 +178,7 @@ func (store *QueueStore) GetQueue(clientID string, guildID string) (*model.Queue
 
 	queue := &model.Queue{}
 
-	if err := store.con.QueryRow(
+	if err := store.db.QueryRow(
 		`
         SELECT * FROM "queue"
         WHERE "queue".guild_id = $1 AND
@@ -204,7 +212,7 @@ func (store *QueueStore) FindAllQueues() ([]*model.Queue, error) {
 
 	queues := make([]*model.Queue, 0)
 
-	if rows, err := store.con.Query(
+	if rows, err := store.db.Query(
 		`SELECT * FROM "queue"`,
 	); err != nil {
 		store.log.Tracef(
@@ -273,7 +281,7 @@ func (store *QueueStore) PersistQueueOptions(clientID string, guildID string, op
 	s += `
      ON CONFLICT DO NOTHING;
     `
-	if _, err := store.con.Exec(s); err != nil {
+	if _, err := store.db.Exec(s); err != nil {
 		store.log.Tracef("[Q%d]Error: %v", i, err)
 		return err
 	}
@@ -305,7 +313,7 @@ func (store *QueueStore) RemoveQueueOptions(clientID string, guildID string, opt
 		l = append(l, string(o))
 	}
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         DELETE FROM "queue_option"
         WHERE "queue_option".name = ANY($1) AND
@@ -338,7 +346,7 @@ func (store *QueueStore) GetOptionsForQueue(clientID string, guildID string) ([]
 		"GuildID":  guildID,
 	}).Tracef("[Q%d]Start: Fetch options for queue", i)
 
-	rows, err := store.con.Query(
+	rows, err := store.db.Query(
 		`
         SELECT * FROM "queue_option"
         WHERE "queue_option".queue_client_id = $1 AND
@@ -385,7 +393,7 @@ func (store *QueueStore) createQueueTable() error {
 		i,
 	)
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         CREATE TABLE IF NOT EXISTS "queue" (
             client_id VARCHAR,
@@ -419,7 +427,7 @@ func (store *QueueStore) createQueueOptionTable() error {
 		i,
 	)
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         CREATE TABLE IF NOT EXISTS "queue_option" (
             name VARCHAR,
@@ -438,5 +446,51 @@ func (store *QueueStore) createQueueOptionTable() error {
 	store.log.WithField("Latency", time.Since(t)).Tracef(
 		"[Q%d]Done : psql table created", i,
 	)
+	return nil
+}
+
+// dropQueueTable() drops the "queue" table.
+func (store *QueueStore) dropQueueTable() error {
+	i, t := store.idx, time.Now()
+	store.idx++
+
+	store.log.WithField("TableName", "queue").Tracef(
+		"[Q%d]Start: Drop psql table (if exists)", i,
+	)
+
+	if _, err := store.db.Exec(
+		`DROP TABLE IF EXISTS "queue" CASCADE`,
+	); err != nil {
+		store.log.Tracef(
+			"[Q%d]Error: %v", i, err,
+		)
+		return err
+	}
+	store.log.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[Q%d]Done : psql table dropped", i)
+	return nil
+}
+
+// dropQueueOptionTable drops the "queue_option" table.
+func (store *QueueStore) dropQueueOptionTable() error {
+	i, t := store.idx, time.Now()
+	store.idx++
+
+	store.log.WithField("TableName", "queue_option").Tracef(
+		"[Q%d]Start: Drop psql table (if exists)", i,
+	)
+
+	if _, err := store.db.Exec(
+		`DROP TABLE IF EXISTS "queue_option" CASCADE`,
+	); err != nil {
+		store.log.Tracef(
+			"[Q%d]Error: %v", i, err,
+		)
+		return err
+	}
+	store.log.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[Q%d]Done : psql table dropped", i)
 	return nil
 }

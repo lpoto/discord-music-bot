@@ -205,70 +205,6 @@ func (store *SongStore) PersistSongToFront(clientID string, guildID string, song
 	return nil
 }
 
-// UpdateSongs updates all of the provided songs in the database
-// in a single query.
-// This does not update their ID's or their foreign keys that
-// reference a Queue.
-func (store *SongStore) UpdateSongs(songs []*model.Song) error {
-	if len(songs) < 1 {
-		return nil
-	}
-
-	i, t := store.idx, time.Now()
-	store.idx++
-
-	store.log.Tracef("[S%d]Start: Update %d songs", i, len(songs))
-
-	s := `
-    UPDATE "song" as s set
-        position = s2.position::integer,
-        name = s2.name::varchar,
-        short_name = s2.short_name::varchar,
-        url = s2.url::varchar,
-        duration_seconds = s2.duration_seconds::integer,
-        duration_string = s2.duration_string::varchar,
-        color = s2.color::integer
-    FROM (
-        VALUES
-    `
-	params := make([]interface{}, 0)
-	p := 1
-	for i, song := range songs {
-		if i > 0 {
-			s += ","
-		}
-		params = append(params, song.ID)
-		params = append(params, song.Position)
-		params = append(params, song.Name)
-		params = append(params, song.ShortName)
-		params = append(params, song.Url)
-		params = append(params, song.DurationSeconds)
-		params = append(params, song.DurationString)
-		params = append(params, song.Color)
-
-		s += fmt.Sprintf(
-			` ($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)`,
-			p, p+1, p+2, p+3, p+4, p+5, p+6, p+7,
-		)
-		p += 8
-	}
-	s += `
-        ) as s2(
-            id, position, name, short_name, url, duration_seconds,
-            duration_string, color
-        )
-        WHERE s.id = s2.id::integer;
-    `
-	if _, err := store.db.Exec(s, params...); err != nil {
-		store.log.Tracef("[S%d]Error: %v", i, err)
-		return err
-	}
-	store.log.WithField(
-		"Latency", time.Since(t),
-	).Tracef("[S%d]Done : Songs updated", i)
-	return nil
-}
-
 // GetSongsForQueue fetches the songs that belong to the queue identified
 // by the provided clientID and guilID,
 // limited by the provided offset and limit.
@@ -951,7 +887,7 @@ func (store *SongStore) dropSongTable() error {
 	)
 
 	if _, err := store.db.Exec(
-		`DROP TABLE IF EXISTS "song"`,
+		`DROP TABLE IF EXISTS "song" CASCADE`,
 	); err != nil {
 		store.log.Tracef(
 			"[S%d]Error: %v", i, err,
@@ -974,7 +910,7 @@ func (store *SongStore) dropInactiveSongTable() error {
 	)
 
 	if _, err := store.db.Exec(
-		`DROP TABLE IF EXISTS "inactive_song"`,
+		`DROP TABLE IF EXISTS "inactive_song" CASCADE`,
 	); err != nil {
 		store.log.Tracef(
 			"[S%d]Error: %v", i, err,
