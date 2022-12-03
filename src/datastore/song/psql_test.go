@@ -31,8 +31,11 @@ func (s *SongStoreTestSuite) SetupSuite() {
 	s.db = db
 	s.inactiveSongTTL = 2 * time.Second
 	s.store = song.NewSongStore(db, logrus.StandardLogger(), s.inactiveSongTTL)
+}
 
-	err = s.store.Destroy()
+// SetupTest runs before every test and initializes the store.
+func (s *SongStoreTestSuite) SetupTest() {
+	err := s.store.Destroy()
 	s.NoError(err)
 	err = s.store.Init()
 	s.NoError(err)

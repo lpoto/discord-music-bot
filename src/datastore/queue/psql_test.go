@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"discord-music-bot/datastore/queue"
 	"discord-music-bot/model"
+	"fmt"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -28,8 +29,11 @@ func (s *QueueStoreTestSuite) SetupSuite() {
 
 	s.db = db
 	s.store = queue.NewQueueStore(db, logrus.StandardLogger())
+}
 
-	err = s.store.Destroy()
+// SetupTest runs before every test and initializes the store.
+func (s *QueueStoreTestSuite) SetupTest() {
+	err := s.store.Destroy()
 	s.NoError(err)
 	err = s.store.Init()
 	s.NoError(err)
@@ -98,13 +102,96 @@ func (s *QueueStoreTestSuite) TestIntegrationQueueCRUD() {
 
 // TestIntegrationFindAllQueues creates queues then
 // fetches all of them and checks their data.
-// TODO
-func (s *QueueStoreTestSuite) TestIntegrationFindAllQueues() {}
+func (s *QueueStoreTestSuite) TestIntegrationFindAllQueues() {
+	// Should not fetch any queues
+	queried_queues, err := s.store.FindAllQueues()
+	s.NoError(err)
+	s.Len(queried_queues, 0)
+
+	queues := make([]*model.Queue, 0)
+	for i := 1; i < 10; i++ {
+		queue := &model.Queue{
+			ClientID:  fmt.Sprintf("CLIENT-ID-TEST%d", i),
+			GuildID:   fmt.Sprintf("GUILD-ID-TEST%d", i),
+			MessageID: fmt.Sprintf("MESSAGE-ID-TEST%d", i),
+			ChannelID: fmt.Sprintf("CHANNEL-ID-TEST%d", i),
+			Limit:     10,
+			Offset:    0,
+		}
+		queues = append(queues, queue)
+		err := s.store.PersistQueue(queue)
+		s.NoError(err)
+	}
+
+	// Should fetch all inserted queues
+	queried_queues, err = s.store.FindAllQueues()
+	s.NoError(err)
+	s.Len(queried_queues, len(queues))
+	for _, queue := range queues {
+		found := false
+		for _, queried_queue := range queried_queues {
+			if queue.ClientID == queried_queue.ClientID &&
+				queue.GuildID == queried_queue.GuildID &&
+				queue.MessageID == queried_queue.MessageID &&
+				queue.ChannelID == queried_queue.ChannelID &&
+				queue.Offset == queried_queue.Offset &&
+				queue.Limit == queried_queue.Limit {
+				found = true
+				break
+
+			}
+		}
+		s.Equal(true, found)
+	}
+}
 
 // TestIntegrationAddRemoveQueueOptions creates a queue then adds and
 // removes options from it.
-// TODO
-func (s *QueueStoreTestSuite) TestIntegrationAddRemoveQueueOptions() {}
+func (s *QueueStoreTestSuite) TestIntegrationAddRemoveQueueOptions() {
+	queue := &model.Queue{
+		ClientID:  "CLIENT-ID-TEST",
+		GuildID:   "GUILD-ID-TEST",
+		MessageID: "MESSAGE-ID-TEST",
+		ChannelID: "CHANNEL-ID-TEST",
+		Limit:     10,
+		Offset:    0,
+	}
+	err := s.store.PersistQueue(queue)
+	s.NoError(err)
+	s.Len(queue.Options, 0)
+
+	err = s.store.PersistQueueOptions(
+		queue.ClientID,
+		queue.GuildID,
+		model.LoopOption(),
+		model.PausedOption(),
+	)
+	s.NoError(err)
+
+	// Make sure the added options are there
+	queue, err = s.store.GetQueue(queue.ClientID, queue.GuildID)
+	s.NoError(err)
+	s.Len(queue.Options, 2)
+
+	found := 0
+	for _, v := range queue.Options {
+		if v.Name == model.Loop {
+			found++
+		} else if v.Name == model.Paused {
+			found++
+		}
+	}
+	s.Equal(2, found)
+
+	err = s.store.RemoveQueueOptions(queue.ClientID, queue.GuildID, model.Paused)
+	s.NoError(err)
+
+	options, err := s.store.GetOptionsForQueue(queue.ClientID, queue.GuildID)
+	s.NoError(err)
+	s.Len(options, 1)
+	s.Equal(options[0].Name, model.Loop)
+
+}
 
 // TestQueueStorageTestSuite runs all tests under
 // the QueueStoreTestSuite suite.
