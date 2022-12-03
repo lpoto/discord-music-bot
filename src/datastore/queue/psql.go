@@ -197,6 +197,12 @@ func (store *QueueStore) GetQueue(clientID string, guildID string) (*model.Queue
 		return nil, err
 	}
 
+    opts, err := store.GetOptionsForQueue(clientID, guildID)
+    if err != nil {
+        return nil, err
+    }
+    queue.Options = opts
+
 	store.log.WithField(
 		"Latency", time.Since(t),
 	).Tracef("[Q%d]Done : Queue found", i)
@@ -362,7 +368,7 @@ func (store *QueueStore) GetOptionsForQueue(clientID string, guildID string) ([]
 	options := make([]*model.QueueOption, 0)
 	for rows.Next() {
 		opt := &model.QueueOption{}
-		var ignore uint
+		var ignore interface{}
 		if err := rows.Scan(
 			&opt.Name, &ignore, &ignore,
 		); err != nil {
