@@ -1,7 +1,7 @@
 # used for testing with github workflows
 version: '3.8'
 services:
-  app:
+  bot:
     image: golang:latest
     init: true  # run tini - https://github.com/krallin/tini
     entrypoint: "sleep infinity"
@@ -10,6 +10,22 @@ services:
     - go_cache:/.gocache/  # go cache
     - ../src:/sources/src:cached
     working_dir: /sources/src
+    depends_on:
+    - postgres
+    networks:
+    - vpcbr
+  postgres:
+    image: postgres:14.1-alpine
+    container_name: discord-postgres-test
+    restart: unless-stopped
+    ports:
+        - 5432:5432
+    environment:
+        POSTGRES_DB: discord_bot_test
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+    volumes:
+        - postgres_data:/var/lib/postgresql/data
     networks:
     - vpcbr
 networks:
@@ -17,3 +33,4 @@ networks:
 volumes:
   go:
   go_cache:
+  postgres_data:

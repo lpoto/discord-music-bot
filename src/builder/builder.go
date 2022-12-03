@@ -1,31 +1,37 @@
 package builder
 
-type Builder struct {
-	Config *Configuration
-}
+import (
+	"discord-music-bot/builder/queue"
+	"discord-music-bot/builder/song"
+)
 
 type Configuration struct {
-	Title       string         `yaml:"Title" validate:"required"`
-	Description string         `yaml:"Description"`
-	Footer      string         `yaml:"Footer"`
-	Buttons     *ButtonsConfig `yaml:"Buttons" validate:"required"`
+	Queue *queue.Configuration `yaml:"Queue" validate:"required"`
 }
 
-type ButtonsConfig struct {
-	Backward string `yaml:"Backward" validate:"required"`
-	Forward  string `yaml:"Forward" validate:"required"`
-	Pause    string `yaml:"Pause" validate:"required"`
-	Skip     string `yaml:"Skip" validate:"required"`
-	Previous string `yaml:"Previous" validate:"required"`
-	Replay   string `yaml:"Replay" validate:"required"`
-	AddSongs string `yaml:"AddSongs" validate:"required"`
-	Loop     string `yaml:"Loop" validate:"required"`
-	Join     string `yaml:"Join" validate:"required"`
-	Offline  string `yaml:"Offline" validate:"required"`
+type Builder struct {
+	queue *queue.QueueBuilder
+	song  *song.SongBuilder
 }
 
 // NewBuilder constructs an object that handles building
 // the queue's embed, components, ... based on it's current state
 func NewBuilder(config *Configuration) *Builder {
-	return &Builder{config}
+	b := &Builder{
+		song: song.NewSongBuilder(),
+	}
+	b.queue = queue.NewQueueBuidler(config.Queue, b.song)
+	return b
+}
+
+// Queue returns an object that handles building
+// queue objects and mapping them to embeds.
+func (builder *Builder) Queue() *queue.QueueBuilder {
+	return builder.queue
+}
+
+// Song return an object  that handles building
+// songs and formatting their names etc.
+func (builder *Builder) Song() *song.SongBuilder {
+	return builder.song
 }

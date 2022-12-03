@@ -29,7 +29,7 @@ func (bot *Bot) onBulkMessageDelete(s *discordgo.Session, m *discordgo.MessageDe
 func (bot *Bot) deleteQueue(s *discordgo.Session, guildID string, messageIDs []string) {
 	clientID := s.State.User.ID
 
-	queue, err := bot.datastore.FindQueue(
+	queue, err := bot.datastore.Queue().GetQueue(
 		clientID,
 		guildID,
 	)
@@ -56,7 +56,7 @@ func (bot *Bot) deleteQueue(s *discordgo.Session, guildID string, messageIDs []s
 		vc.Disconnect()
 	}
 
-	if err := bot.datastore.RemoveQueue(
+	if err := bot.datastore.Queue().RemoveQueue(
 		clientID,
 		queue.GuildID,
 	); err != nil {

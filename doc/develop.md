@@ -3,61 +3,33 @@
 ## Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Running the bot inside a docker container](#running-the-bot-inside-a-docker-container)
-3. [Running the bot wihtout docker](#running-the-bot-without-docker)
-4. [Building the docker image](#building-the-image)
-5. [Creating a Discord Bot Token](#creating-a-discord-bot-token)
-6. [Adding the bot to a Discord Server](#add-the-bot-to-your-discord-server)
+2. [Running the bot](#running-the-bot)
+3. [Running tests](#running-tests)
+4. [Creating a Discord Bot Token](#creating-a-discord-bot-token)
+5. [Adding the bot to a Discord Server](#add-the-bot-to-your-discord-server)
 
 ## Prerequisites
 
-1. Create the file `./src/config.yaml` and copy the contents from [./conf/config.example.yaml](./conf/config.example.yaml)
-2. Replace `DiscordToken` value with your [discord bot token](#creating-a-discord-bot-token)
+1. Create the file `./src/config.yaml` then copy and modify the contents
+   from [./conf/config.example.yaml](./conf/config.example.yaml).
+2. Make sure the datastore values match an existing postgresql instance.
 3. Update [help.txt](./conf/help.txt) if necessary.
 
-## Running the bot inside a docker container
+## Running the bot
 
 ```bash
 docker-compose -f .dockerenv/docker-compose.yaml up
 ```
 
-## Running the bot without docker
-
-1. Run the postgres container (or set it up locally without the docker):
-
-```bash
-docker-compose -f .dockerenv/docker-compose.postgres.yaml up -d
-```
-
-2. Export the postgres variables that match the env. variables in [docker-compose.postgres.yaml](./.dockerenv/docker-compose.postgres.yaml):
+## Running tests
+Tests are run with github's CI, but to run them locally:
 
 ```bash
-export POSTGRES_DB=postgres
-export POSTGRES_HOST=localhost
-export POSTGRES_PORT=5432
-export POSTGRES_USER=postgres
-export POSTGRES_PASSWORD=postgres
+docker-compose -f .dockerenv/docker-compose.test.yaml up -d
+
+docker-compose -f .dockerenv/docker-compose.test.yaml exec bot bash
+go test ./... -p 1
 ```
-
-3. Run the bot:
-
-```bash
-cd ./src
-
-go run .
-```
-
-## Building the image
-
-Running:
-
-```bash
-.dockerenv/build
-```
-
-builds the bot image and pushes it to [docker hub](https://hub.docker.com/).
-To use the built image, replace the `build:` section in [docker-compose.yaml](./.dockerenv/docker-compose.yaml)
-with `image: <built-image-reference>`.
 
 ## Creating a discord bot token
 

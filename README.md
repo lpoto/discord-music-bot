@@ -18,4 +18,4 @@ There are plans for adding more features such as:
 
 ## Developing the bot
 
-See [how to run the bot locally.](./doc/develop.md)
+See [develop](./doc/develop.md)

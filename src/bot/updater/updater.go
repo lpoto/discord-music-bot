@@ -102,20 +102,24 @@ func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error 
 
 	clientID := s.State.User.ID
 
-	queue, err := updater.datastore.GetQueue(clientID, guildID)
+	queue, err := updater.datastore.Queue().GetQueue(clientID, guildID)
 	if err != nil {
 		return err
 	}
-	state := builder.QueueStateInactive
-	if !updater.ready() {
-		state = builder.QueueStateOffline
-	} else {
-		if vc, ok := s.VoiceConnections[guildID]; ok && len(vc.ChannelID) > 0 {
-			state = builder.QueueStateDefault
-		}
+	queue, err = updater.datastore.Song().UpdateQueueWithSongs(queue)
+	if err != nil {
+		return err
 	}
-	embed := updater.builder.MapQueueToEmbed(queue)
-	components := updater.builder.GetMusicQueueComponents(queue, state)
+	var components []discordgo.MessageComponent
+	if !updater.ready() {
+		components = updater.builder.Queue().GetOfflineQueueComponents(queue)
+	} else if vc, ok := s.VoiceConnections[guildID]; ok && len(vc.ChannelID) > 0 {
+		components = updater.builder.Queue().GetMusicQueueComponents(queue)
+	} else {
+		components = updater.builder.Queue().GetInactiveQueueComponents(queue)
+
+	}
+	embed := updater.builder.Queue().MapQueueToEmbed(queue)
 
 	err = nil
 

@@ -3,10 +3,9 @@ package datastore
 import (
 	"context"
 	"database/sql"
-	"errors"
+	"discord-music-bot/datastore/queue"
+	"discord-music-bot/datastore/song"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -15,14 +14,23 @@ import (
 
 type Datastore struct {
 	*log.Logger
-	*sql.DB
 	config *Configuration
-	idx    int
+	queue  *queue.QueueStore
+	song   *song.SongStore
+}
+
+type PostgresConfig struct {
+	Database string `yaml:"Database" validate:"required"`
+	User     string `yaml:"User" validate:"required"`
+	Password string `yaml:"Password" validate:"required"`
+	Host     string `yaml:"Host" validate:"required"`
+	Port     int    `yaml:"Port" validate:"required"`
 }
 
 type Configuration struct {
-	LogLevel        log.Level     `yaml:"LogLevel" validate:"required"`
-	InactiveSongTTL time.Duration `yaml:"InactiveSongTTL" validate:"required"`
+	LogLevel        log.Level       `yaml:"LogLevel" validate:"required"`
+	InactiveSongTTL time.Duration   `yaml:"InactiveSongTTL" validate:"required"`
+	Postgres        *PostgresConfig `yaml:"Postgres" validate:"required"`
 }
 
 // NewDatastore constructs an object that handles persisting
@@ -32,49 +40,32 @@ func NewDatastore(config *Configuration) *Datastore {
 	l := log.New()
 	l.SetLevel(config.LogLevel)
 	l.Debug("Datastore created")
-	return &Datastore{Logger: l, config: config, idx: 0}
+	return &Datastore{Logger: l, config: config}
 }
 
 // Connect opens a new postges connection based on the
 // provided database configuration
 func (datastore *Datastore) Connect() error {
-	datastore.Info("Oppening postgres connection ...")
+	datastore.Info("Oppening datastore connection ...")
 
-	host := os.Getenv("POSTGRES_HOST")
-	if len(host) == 0 {
-		return errors.New("Missing environment variable 'POSTGRES_HOST'")
-	}
-	portString := os.Getenv("POSTGRES_PORT")
-	if len(portString) == 0 {
-		return errors.New("Missing environment variable 'POSTGRES_PORT'")
-	}
-	user := os.Getenv("POSTGRES_USER")
-	if len(user) == 0 {
-		return errors.New("Missing environment variable 'POSTGRES_USER'")
-	}
-	password := os.Getenv("POSTGRES_PASSWORD")
-	if len(password) == 0 {
-		return errors.New("Missing environment variable 'POSTGRES_PASSWORD'")
-	}
-	database := os.Getenv("POSTGRES_DB")
-	if len(database) == 0 {
-		return errors.New("Missing environment variable 'POSTGRES_DB'")
-	}
-
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		return errors.New("'POSTGRES_PORT' is not a valid port number")
-	}
-
+	datastore.WithField("Url",
+		fmt.Sprintf(
+			"postgres://%s:****@%s:%d/%s",
+			datastore.config.Postgres.User,
+			datastore.config.Postgres.Host,
+			datastore.config.Postgres.Port,
+			datastore.config.Postgres.Database,
+		),
+	).Debug("Connecting to postgres database")
 	db, err := sql.Open(
 		"postgres",
 		fmt.Sprintf(
 			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			host,
-			port,
-			user,
-			password,
-			database,
+			datastore.config.Postgres.Host,
+			datastore.config.Postgres.Port,
+			datastore.config.Postgres.User,
+			datastore.config.Postgres.Password,
+			datastore.config.Postgres.Database,
 		),
 	)
 	if err != nil {
@@ -84,39 +75,46 @@ func (datastore *Datastore) Connect() error {
 	if err := db.Ping(); err != nil {
 		return err
 	}
-	datastore.DB = db
+	datastore.queue = queue.NewQueueStore(db, datastore.Logger)
+	datastore.song = song.NewSongStore(
+		db,
+		datastore.Logger,
+		datastore.config.InactiveSongTTL,
+	)
 
-	datastore.Info("Postgres connection established")
+	datastore.Info("Datastore connection established")
 	return nil
 }
 
 // Init creates all the tables required by the datastore
 // and runs the goroutine required for deleting the
 // outdated inactive songs.
-func (datastore *Datastore) Init(ctx context.Context) error {
+func (datastore *Datastore) Init(ctx context.Context, runInactiveSongsCleanup bool) error {
 	datastore.Debug("Initializing datastore ...")
 
-	if err := datastore.createQueueTable(); err != nil {
+	if err := datastore.queue.Init(); err != nil {
 		return err
 	}
-	if err := datastore.createQueueOptionTable(); err != nil {
-		return err
-	}
-	if err := datastore.createSongTable(); err != nil {
-		return err
-	}
-	if err := datastore.createInactiveSongTable(); err != nil {
+	if err := datastore.song.Init(); err != nil {
 		return err
 	}
 
-	go datastore.runInactiveSongsCleanup(ctx)
+	if runInactiveSongsCleanup {
+		go datastore.song.RunInactiveSongsCleanup(ctx)
+	}
 
 	datastore.Info("Datastore initialized")
 	return nil
 }
 
-func (datastore *Datastore) getIdx() int {
-	i := datastore.idx
-	datastore.idx = ((datastore.idx + 1) % 100)
-	return i
+// Queue returns the object that handles persisting and
+// removing Queues in the datastore.
+func (datastore *Datastore) Queue() *queue.QueueStore {
+	return datastore.queue
+}
+
+// Song returns the object that handles persisting and
+// removing Songs in the datastore.
+func (datastore *Datastore) Song() *song.SongStore {
+	return datastore.song
 }

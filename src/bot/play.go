@@ -37,7 +37,11 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 	bot.audioplayers.Add(guildID, ap)
 	defer bot.audioplayers.Remove(guildID)
 
-	queue, err := bot.datastore.GetQueue(s.State.User.ID, guildID)
+	queue, err := bot.datastore.Queue().GetQueue(s.State.User.ID, guildID)
+	if err != nil {
+		return err
+	}
+	queue, err = bot.datastore.Song().UpdateQueueWithSongs(queue)
 	if err != nil {
 		return err
 	}
@@ -84,10 +88,14 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 // when the audioplayer finishes. This will only be called if
 // no other functions were passed into the audioplayer's deferfuncbuffer
 func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
-	queue, err := bot.datastore.GetQueue(
+	queue, err := bot.datastore.Queue().GetQueue(
 		s.State.User.ID,
 		guildID,
 	)
+	if err != nil {
+		return
+	}
+	queue, err = bot.datastore.Song().UpdateQueueWithSongs(queue)
 	if err != nil {
 		return
 	}
@@ -95,8 +103,8 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 	// NOTE: if loop is enabled in the queue
 	// push it's headSong to the back of the queue
 	// else just
-	if bot.builder.QueueHasOption(queue, model.Loop) {
-		if err := bot.datastore.PushHeadSongToBack(
+	if bot.builder.Queue().QueueHasOption(queue, model.Loop) {
+		if err := bot.datastore.Song().PushHeadSongToBack(
 			s.State.User.ID,
 			guildID,
 		); err != nil {
@@ -107,7 +115,7 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 		}
 	} else {
 		// NOTE: persist queue's headSong to inactive song table
-		if err := bot.datastore.PersistInactiveSongs(
+		if err := bot.datastore.Song().PersistInactiveSongs(
 			s.State.User.ID,
 			guildID,
 			queue.HeadSong,
@@ -116,7 +124,7 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 				"Error when removing song during play: %v", err,
 			)
 		}
-		if err := bot.datastore.RemoveHeadSong(
+		if err := bot.datastore.Song().RemoveHeadSong(
 			// NOTE: the finished song should be removed
 			// from the queue
 			s.State.User.ID,
@@ -138,7 +146,7 @@ func (bot *Bot) audioplayerDefaultErrorDefer(s *discordgo.Session, guildID strin
 	// NOTE: if error occured when playing the head song,
 	// it should be removed
 
-	if err := bot.datastore.RemoveHeadSong(
+	if err := bot.datastore.Song().RemoveHeadSong(
 		// NOTE: the finished song should be removed
 		// from the queue
 		s.State.User.ID,

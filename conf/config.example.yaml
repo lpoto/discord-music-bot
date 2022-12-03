@@ -2,6 +2,18 @@ MusicBot:
   LogLevel: DEBUG                                                         # default log level for the music bot
   DiscordToken: discord_bot_token                                         # the authentication token for the bot
   MaxAloneTime: 5m                                                        # time after the bot leaves, if it's alone in the channel
+  Youtube:
+    LogLevel: DEBUG                                                       # Log level for the client that performs http requests to youtube
+    MaxParallelQueries: 100                                               # Max. number of songs searched for at the same time
+  Datastore:
+    LogLevel: DEBUG                                                       # Log level for the postgres datastore
+    InactiveSongTTL: 2h                                                   # Duration after which the inactive song is deleted (song that has already been listened to and may be accessed by clicking the "previous" button)
+    Postgres:                                                             # Postgresql database configuration
+      Database: postgres
+      User: postgres
+      Password: postgres
+      Host: localhost
+      Port: 5432
   SlashCommands:                                                          # Global slash commands created by the bot
     Music:                                                                # Slash command that initializes a new music queue in the server
       Name: music
@@ -17,25 +29,19 @@ MusicBot:
       Name: Add Songs
       Label: Enter names or urls of youtube songs
       Placeholder: "song name or url#1\nsong name or url#2\n..."
-  QueueBuilder:                                                           # Configuration for the appearance of the music queue
-    Title: Music Queue
-    Description: ""
-    Footer: "Life is one grand, sweet song... so start the music."
-    Buttons:                                                              # Labels on the music queue's buttons
-      Backward: "<"
-      Forward: ">"
-      Skip: ">>"
-      Previous: "<<"
-      Pause: "ll"
-      Replay: "↺"
-      Loop: "Loop"
-      AddSongs: "Add"
-      Join: "Join"
-      Offline: "The bot is currently offline"
-  Youtube:
-    LogLevel: DEBUG                                                       # Log level for the client that performs http requests to youtube
-    MaxParallelQueries: 100                                               # Max. number of songs searched for at the same time
-  Datastore:
-    LogLevel: DEBUG                                                       # Log level for the postgres datastore
-    InactiveSongTTL: 2h                                                   # Duration after which the inactive song is deleted (song that has already been listened to and may be accessed by clicking the "previous" button)
-
+  Builder:                                                                # Configuration for the appearance of the music queue
+    Queue:
+      Title: Music Queue
+      Description: ""
+      Footer: "Life is one grand, sweet song... so start the music."
+      Buttons:                                                            # Labels on the music queue's buttons
+        Backward: "<"
+        Forward: ">"
+        Skip: ">>"
+        Previous: "<<"
+        Pause: "ll"
+        Replay: "↺"
+        Loop: "Loop"
+        AddSongs: "Add"
+        Join: "Join"
+        Offline: "The bot is currently offline"

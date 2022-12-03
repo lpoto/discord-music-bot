@@ -53,10 +53,10 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	// and update it
 	songs := make([]*model.Song, len(songInfos))
 	for i, info := range songInfos {
-		songs[i] = bot.builder.NewSong(info)
+		songs[i] = bot.builder.Song().NewSong(info)
 	}
 
-	if err := bot.datastore.PersistSongs(
+	if err := bot.datastore.Song().PersistSongs(
 		s.State.User.ID,
 		i.GuildID,
 		songs...,
