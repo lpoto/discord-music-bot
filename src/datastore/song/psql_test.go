@@ -245,13 +245,194 @@ func (s *SongStoreTestSuite) TestIntegrationSongsCRUD() {
 // TestIntegrationSongsForQueue creates songs then
 // updates a queue with songs and checks whether the queue
 // not has the correct songs fields.
-// TODO
-func (s *SongStoreTestSuite) TestIntegrationSongsForQueue() {}
+func (s *SongStoreTestSuite) TestIntegrationSongsForQueue() {
+	err := s.store.PersistSongs(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+		&model.Song{
+			ID:              1,
+			Name:            "Song1",
+			ShortName:       "Song1",
+			Url:             "SongUrl1",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+		&model.Song{
+			ID:              2,
+			Name:            "Song2",
+			ShortName:       "Song2",
+			Url:             "SongUrl2",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+		&model.Song{
+			ID:              3,
+			Name:            "Song3",
+			ShortName:       "Song3",
+			Url:             "SongUrl3",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+	)
+	s.NoError(err)
+	err = s.store.PersistSongs(
+		"CLIENT-ID-TEST2",
+		"GUILD-ID-TEST2",
+		&model.Song{
+			ID:              2,
+			Name:            "Song3",
+			ShortName:       "Song3",
+			Url:             "SongUrl3",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+	)
+	s.NoError(err)
+
+	songs, err := s.store.GetSongsForQueue(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+		0, 3,
+	)
+	s.NoError(err)
+	s.Len(songs, 3)
+	s.Equal(uint(1), songs[0].ID)
+	s.Equal(uint(2), songs[1].ID)
+	s.Equal(uint(3), songs[2].ID)
+
+	songs, err = s.store.GetSongsForQueue(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+		1, 2,
+	)
+	s.NoError(err)
+	s.Len(songs, 2)
+	s.Equal(uint(2), songs[0].ID)
+	s.Equal(uint(3), songs[1].ID)
+
+	songs, err = s.store.GetSongsForQueue(
+		"CLIENT-ID-TEST2",
+		"GUILD-ID-TEST2",
+		0, 3,
+	)
+	s.NoError(err)
+	s.Len(songs, 1)
+	s.Equal(uint(4), songs[0].ID)
+
+	err = s.store.PersistInactiveSongs(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+		&model.Song{
+			ID:              5,
+			Name:            "Song5",
+			ShortName:       "Song5",
+			Url:             "SongUrl5",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+		&model.Song{
+			ID:              6,
+			Name:            "Song6",
+			ShortName:       "Song6",
+			Url:             "SongUrl6",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+	)
+	s.NoError(err)
+
+	queue, err := s.store.UpdateQueueWithSongs(&model.Queue{
+		ClientID: "CLIENT-ID-TEST",
+		GuildID:  "GUILD-ID-TEST",
+		Offset:   0,
+		Limit:    10,
+	})
+	s.NoError(err)
+	s.Len(queue.Songs, 2)
+	s.Equal(3, queue.Size)
+	s.Equal(2, queue.InactiveSize)
+	s.Equal(uint(1), queue.HeadSong.ID)
+	s.Equal(uint(2), queue.Songs[0].ID)
+	s.Equal(uint(3), queue.Songs[1].ID)
+}
 
 // TestIntegrationInactiveSongsCRUD first persists songs then
 // fetches them and checks their fields.
-// TODO
-func (s *SongStoreTestSuite) TestIntegrationInactiveSongsCRUD() {}
+func (s *SongStoreTestSuite) TestIntegrationInactiveSongsCRUD() {
+	// First insert 3 songs normally into
+	// the store
+	err := s.store.PersistInactiveSongs(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+		&model.Song{
+			ID:              1,
+			Name:            "Song1",
+			ShortName:       "Song1",
+			Url:             "SongUrl1",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+		&model.Song{
+			ID:              2,
+			Name:            "Song2",
+			ShortName:       "Song2",
+			Url:             "SongUrl2",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+	)
+	s.NoError(err)
+
+	// Should get that there are 2 songs
+	count := s.store.GetInactiveSongCountForQueue(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+	)
+	s.Equal(count, 2)
+
+	song, err := s.store.PopLatestInactiveSong(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+	)
+	s.NoError(err)
+	// The latest one added should be popped
+	s.Equal(uint(2), song.ID)
+	s.Equal("Song2", song.Name)
+	s.Equal("Song2", song.ShortName)
+	s.Equal("SongUrl2", song.Url)
+
+	// Should get that there is now a single song
+	count = s.store.GetInactiveSongCountForQueue(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+	)
+	s.Equal(count, 1)
+
+	song, err = s.store.PopLatestInactiveSong(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+	)
+	s.NoError(err)
+	s.Equal(uint(1), song.ID)
+	s.Equal("Song1", song.Name)
+	s.Equal("Song1", song.ShortName)
+	s.Equal("SongUrl1", song.Url)
+
+	// Should get that there are now no songs
+	count = s.store.GetInactiveSongCountForQueue(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+	)
+	s.Equal(count, 0)
+}
 
 // TestSongStorageTestSuite runs all tests under
 // the SongStoreTestSuite suite.

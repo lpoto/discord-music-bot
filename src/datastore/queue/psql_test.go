@@ -190,7 +190,6 @@ func (s *QueueStoreTestSuite) TestIntegrationAddRemoveQueueOptions() {
 	s.NoError(err)
 	s.Len(options, 1)
 	s.Equal(options[0].Name, model.Loop)
-
 }
 
 // TestQueueStorageTestSuite runs all tests under
