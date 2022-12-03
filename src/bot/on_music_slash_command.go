@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"discord-music-bot/builder"
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
@@ -37,15 +36,13 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 
 	// Construct a new queue, send it to the channel
 	// and persist it in the datastore
-	queue := bot.builder.NewQueue(
+	queue := bot.builder.Queue().NewQueue(
 		s.State.User.ID,
 		i.GuildID,
 		"", "",
 	)
-	embed := bot.builder.MapQueueToEmbed(queue)
-	components := bot.builder.GetMusicQueueComponents(
-		queue, builder.QueueStateDefault,
-	)
+	embed := bot.builder.Queue().MapQueueToEmbed(queue)
+	components := bot.builder.Queue().GetMusicQueueComponents(queue)
 
 	err := s.InteractionRespond(
 		i.Interaction,

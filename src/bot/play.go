@@ -103,7 +103,7 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 	// NOTE: if loop is enabled in the queue
 	// push it's headSong to the back of the queue
 	// else just
-	if bot.builder.QueueHasOption(queue, model.Loop) {
+	if bot.builder.Queue().QueueHasOption(queue, model.Loop) {
 		if err := bot.datastore.Song().PushHeadSongToBack(
 			s.State.User.ID,
 			guildID,

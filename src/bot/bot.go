@@ -37,7 +37,7 @@ type Configuration struct {
 	LogLevel      log.Level                          `yaml:"LogLevel" validate:"required"`
 	DiscordToken  string                             `yaml:"DiscordToken" validate:"required"`
 	Datastore     *datastore.Configuration           `yaml:"Datastore" validate:"required"`
-	QueueBuilder  *builder.Configuration             `yaml:"QueueBuilder" validate:"required"`
+	Builder       *builder.Configuration             `yaml:"Builder" validate:"required"`
 	SlashCommands *slash_command.SlashCommandsConfig `yaml:"SlashCommands" validate:"required"`
 	Modals        *modal.ModalsConfig                `yaml:"Modals"`
 	Youtube       *youtube.Configuration             `yaml:"Youtube" validate:"required"`
@@ -57,7 +57,7 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 		ready:           false,
 		_ready:          false,
 		service:         service.NewService(),
-		builder:         builder.NewBuilder(config.QueueBuilder),
+		builder:         builder.NewBuilder(config.Builder),
 		datastore:       datastore.NewDatastore(config.Datastore),
 		youtubeClient:   youtube.NewYoutubeClient(config.Youtube),
 		config:          config,

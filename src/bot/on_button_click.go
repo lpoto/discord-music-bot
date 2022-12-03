@@ -13,35 +13,35 @@ import (
 // called from the INTERACTION_CREATE event when the interaction type
 // is button click and the message author is bot
 func (bot *Bot) onButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	label := bot.builder.GetButtonLabelFromComponentData(i.MessageComponentData())
+	label := bot.builder.Queue().GetButtonLabelFromComponentData(i.MessageComponentData())
 	bot.WithField("GuildID", i.GuildID).Tracef("Button clicked (%s)", label)
 
 	switch label {
-	case bot.builder.Config.Buttons.AddSongs:
+	case bot.builder.Queue().ButtonsConfig().AddSongs:
 		bot.addSongs(s, i)
 		return
-	case bot.builder.Config.Buttons.Backward:
+	case bot.builder.Queue().ButtonsConfig().Backward:
 		bot.backwardButtonClick(s, i)
 		return
-	case bot.builder.Config.Buttons.Forward:
+	case bot.builder.Queue().ButtonsConfig().Forward:
 		bot.forwardButtonClick(s, i)
 		return
-	case bot.builder.Config.Buttons.Loop:
+	case bot.builder.Queue().ButtonsConfig().Loop:
 		bot.loopButtonClick(s, i)
 		return
-	case bot.builder.Config.Buttons.Pause:
+	case bot.builder.Queue().ButtonsConfig().Pause:
 		bot.pauseButtonClick(s, i)
 		return
-	case bot.builder.Config.Buttons.Skip:
+	case bot.builder.Queue().ButtonsConfig().Skip:
 		bot.skipButtonClick(s, i)
 		return
-	case bot.builder.Config.Buttons.Previous:
+	case bot.builder.Queue().ButtonsConfig().Previous:
 		bot.previousButtonClick(s, i)
 		return
-	case bot.builder.Config.Buttons.Replay:
+	case bot.builder.Queue().ButtonsConfig().Replay:
 		bot.replayButtonClick(s, i)
 		return
-	case bot.builder.Config.Buttons.Join:
+	case bot.builder.Queue().ButtonsConfig().Join:
 		bot.joinButtonClick(s, i)
 		return
 	default:
@@ -99,7 +99,7 @@ func (bot *Bot) pauseButtonClick(s *discordgo.Session, i *discordgo.InteractionC
 	time.Sleep(300 * time.Millisecond)
 
 	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
-	if bot.builder.QueueHasOption(queue, model.Paused) {
+	if bot.builder.Queue().QueueHasOption(queue, model.Paused) {
 		bot.datastore.Queue().RemoveQueueOptions(
 			queue.ClientID,
 			queue.GuildID,
@@ -136,7 +136,7 @@ func (bot *Bot) loopButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 	time.Sleep(300 * time.Millisecond)
 
 	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
-	if bot.builder.QueueHasOption(queue, model.Loop) {
+	if bot.builder.Queue().QueueHasOption(queue, model.Loop) {
 		bot.datastore.Queue().RemoveQueueOptions(
 			queue.ClientID,
 			queue.GuildID,
@@ -239,7 +239,9 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 		bot.Errorf("Error on previous button click: %v", err)
 		return
 	}
-	if queue.InactiveSize == 0 && !(queue.Size > 1 && bot.builder.QueueHasOption(queue, model.Loop)) {
+	if queue.InactiveSize == 0 && !(queue.Size > 1 &&
+		bot.builder.Queue().QueueHasOption(queue, model.Loop)) {
+
 		return
 	}
 	done := make(chan struct{}, 2)
@@ -249,7 +251,7 @@ func (bot *Bot) previousButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	// else it is the last removed song
 	f := func(s *discordgo.Session, guildID string) {
 
-		if bot.builder.QueueHasOption(queue, model.Loop) {
+		if bot.builder.Queue().QueueHasOption(queue, model.Loop) {
 			bot.datastore.Song().PushLastSongToFront(s.State.User.ID, guildID)
 		} else {
 			song, err := bot.datastore.Song().PopLatestInactiveSong(

@@ -1,4 +1,4 @@
-package builder
+package song
 
 import (
 	"discord-music-bot/model"
@@ -13,10 +13,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type SongBuilder struct{}
+
+func NewSongBuilder() *SongBuilder {
+	return &SongBuilder{}
+}
+
 // NewSong constructs a song object from the provided song info.
 // It trims and shortens the song's name, converts duration seconds to
 // duration string and adds a random color.
-func (builder *Builder) NewSong(info *model.SongInfo) *model.Song {
+func (builder *SongBuilder) NewSong(info *model.SongInfo) *model.Song {
 	song := new(model.Song)
 	song.DurationSeconds = info.LengthSeconds
 	song.DurationString = builder.secondsToTimeString(song.DurationSeconds)
@@ -29,7 +35,7 @@ func (builder *Builder) NewSong(info *model.SongInfo) *model.Song {
 
 // WrapName wraps the provided name to multiple shorter lines,
 // so the full name may be displayed without widening the queue embed
-func (builder *Builder) WrapName(name string) string {
+func (builder *SongBuilder) WrapName(name string) string {
 	name = strings.TrimSpace(name)
 	spacer := "\n> ㅤ"
 	// Allow only texts of max length 100
@@ -87,7 +93,7 @@ func (builder *Builder) WrapName(name string) string {
 // song name, so that all songs in the queue appear of equal lengths.
 // NOTE: Discord uses a font where the characters differ in lengths,
 // but the names should still appear of equal lengths.
-func (builder *Builder) shortenYoutubeSongName(name string) string {
+func (builder *SongBuilder) shortenYoutubeSongName(name string) string {
 	// TODO: currently this only shortens the name to 30 characters.
 	// It should rather determine which characters are wider,...
 	// and based on that define the new length of the name.
@@ -140,7 +146,7 @@ func (builder *Builder) shortenYoutubeSongName(name string) string {
 
 // trimYoutubeSongName removes suffixes such as [hd], (video), [lyrics], ...
 // from the youtube song name and converts it to  "Title Format"
-func (builder *Builder) trimYoutubeSongName(name string) string {
+func (builder *SongBuilder) trimYoutubeSongName(name string) string {
 	// replace [video], [film], [audio], [hd], (video), ... (text), (official), ...
 	// official video, [official video], (official video), ... official spot, ...
 	// lyrics, texts, ...
@@ -181,7 +187,7 @@ func (builder *Builder) trimYoutubeSongName(name string) string {
 
 // secondsToTimeString converts the seconds to a string
 // formated as hh:mm:ss, hours and minutes are not added if zero
-func (builder *Builder) secondsToTimeString(seconds int) string {
+func (builder *SongBuilder) secondsToTimeString(seconds int) string {
 	s := ""
 	hours := int(seconds / 3600)
 	seconds = seconds % 3600
