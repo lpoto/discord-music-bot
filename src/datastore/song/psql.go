@@ -14,17 +14,17 @@ import (
 
 type SongStore struct {
 	log             *log.Logger
-	con             *sql.DB
+	db              *sql.DB
 	inactiveSongTTL time.Duration
 	idx             int
 }
 
 // NewSongStore creates an object that handles
 // persisting and removing Songs in postgres database.
-func NewSongStore(con *sql.DB, log *log.Logger, inactiveSongTTL time.Duration) *SongStore {
+func NewSongStore(db *sql.DB, log *log.Logger, inactiveSongTTL time.Duration) *SongStore {
 	return &SongStore{
 		log:             log,
-		con:             con,
+		db:              db,
 		idx:             0,
 		inactiveSongTTL: inactiveSongTTL,
 	}
@@ -36,6 +36,14 @@ func (store *SongStore) Init() error {
 		return err
 	}
 	return store.createInactiveSongTable()
+}
+
+// Destroy drops the created tables for the Song store.
+func (store *SongStore) Destroy() error {
+	if err := store.dropSongTable(); err != nil {
+		return err
+	}
+	return store.dropInactiveSongTable()
 }
 
 // UpdateQueueWithSongs fetches the queue's songs,
@@ -137,7 +145,7 @@ func (store *SongStore) PersistSongs(clientID string, guildID string, songs ...*
 		p += 9
 	}
 	s += ";"
-	if _, err := store.con.Exec(s, params...); err != nil {
+	if _, err := store.db.Exec(s, params...); err != nil {
 		store.log.Tracef("[S%d]Error: %v", i, err)
 		return err
 	}
@@ -169,7 +177,7 @@ func (store *SongStore) PersistSongToFront(clientID string, guildID string, song
 		return err
 	}
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
     INSERT INTO "song" (
         position, name, short_name, url, duration_seconds,
@@ -251,7 +259,7 @@ func (store *SongStore) UpdateSongs(songs []*model.Song) error {
         )
         WHERE s.id = s2.id::integer;
     `
-	if _, err := store.con.Exec(s, params...); err != nil {
+	if _, err := store.db.Exec(s, params...); err != nil {
 		store.log.Tracef("[S%d]Error: %v", i, err)
 		return err
 	}
@@ -274,7 +282,7 @@ func (store *SongStore) GetSongsForQueue(clientID string, guildID string, offset
 		"Offset":   offset,
 	}).Tracef("[S%d]Start: Fetch %d songs for queue", i, limit)
 
-	if rows, err := store.con.Query(
+	if rows, err := store.db.Query(
 		`
         SELECT * FROM "song"
         WHERE "song".queue_client_id = $1 AND
@@ -328,7 +336,7 @@ func (store *SongStore) GetAllSongsForQueue(clientID string, guildID string) ([]
 		"GuildID":  guildID,
 	}).Tracef("[S%d]Start: Fetch all songs for queue", i)
 
-	if rows, err := store.con.Query(
+	if rows, err := store.db.Query(
 		`
         SELECT * FROM "song"
         WHERE "song".queue_client_id = $1 AND
@@ -379,7 +387,7 @@ func (store *SongStore) GetSongCountForQueue(clientID string, guildID string) in
 	}).Tracef("[S%d]Start: Fetch song count for queue", i)
 
 	var count int
-	if err := store.con.QueryRow(
+	if err := store.db.QueryRow(
 		`
         SELECT COUNT(*) FROM "song"
         WHERE "song".queue_client_id = $1 AND
@@ -415,7 +423,7 @@ func (store *SongStore) RemoveHeadSong(clientID string, guildID string) error {
 		store.log.Tracef("[S%d]Error: %v", i, err)
 		return err
 	}
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
 
         DELETE FROM "song"
@@ -457,7 +465,7 @@ func (store *SongStore) PushHeadSongToBack(clientID string, guildID string) erro
 		store.log.Tracef("[S%d]Error: %v", i, err)
 		return err
 	}
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         UPDATE "song" SET
         position = $1
@@ -500,7 +508,7 @@ func (store *SongStore) PushLastSongToFront(clientID string, guildID string) err
 		store.log.Tracef("[S%d]Error: %v", i, err)
 		return err
 	}
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         UPDATE "song" SET
         position = $1
@@ -535,7 +543,7 @@ func (store *SongStore) RemoveSongs(clientID string, guildID string, ids ...uint
 		"GuildID":  guildID,
 	}).Tracef("[S%d]Start: Remove %d songs from queue", i, len(ids))
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         DELETE FROM "song"
         WHERE "song".id = ANY($1) AND
@@ -568,7 +576,7 @@ func (store *SongStore) getMaxSongPosition(clientID string, guildID string) (int
 	}).Tracef("[S%d]Start: Fetch max song position for queue", i)
 
 	var position int = 0
-	if err := store.con.QueryRow(
+	if err := store.db.QueryRow(
 		`
         SELECT COALESCE(MAX(s.position), 0)
         FROM "song" s
@@ -601,7 +609,7 @@ func (store *SongStore) getMinSongPosition(clientID string, guildID string) (int
 	}).Tracef("[S%d]Start: Fetch min song position for queue", i)
 
 	var position int = 0
-	if err := store.con.QueryRow(
+	if err := store.db.QueryRow(
 		`
         SELECT COALESCE(MIN(s.position), 0)
         FROM "song" s
@@ -670,7 +678,7 @@ func (store *SongStore) PersistInactiveSongs(clientID string, guildID string, so
 		)
 		p += 8
 	}
-	if _, err := store.con.Exec(s, params...); err != nil {
+	if _, err := store.db.Exec(s, params...); err != nil {
 		store.log.Tracef("[S%d]Error: %v", i, err)
 		return err
 	}
@@ -696,7 +704,7 @@ func (store *SongStore) PopLatestInactiveSong(clientID string, guildID string) (
 	song := &model.Song{}
 	var ignore string
 
-	if err := store.con.QueryRow(
+	if err := store.db.QueryRow(
 		`
         DELETE FROM "inactive_song"
         WHERE "inactive_song".queue_client_id = $1 AND
@@ -742,7 +750,7 @@ func (store *SongStore) GetInactiveSongCountForQueue(clientID string, guildID st
 	}).Tracef("[S%d]Start: Fetch inactive song count for queue", i)
 
 	var count int
-	if err := store.con.QueryRow(
+	if err := store.db.QueryRow(
 		`
         SELECT COUNT(*) FROM "inactive_song"
         WHERE "inactive_song".queue_client_id = $1 AND
@@ -800,7 +808,7 @@ func (store *SongStore) removeOutdatedInactiveSongs() {
 		"[S%d]Start: Remove outdated inactive songs", i,
 	)
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         DELETE FROM "inactive_song"
         WHERE "inactive_song".added <= $1;
@@ -830,7 +838,7 @@ func (store *SongStore) createSongTable() error {
 		"[S%d]Start: Create psql table (if not exists)", i,
 	)
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         CREATE TABLE IF NOT EXISTS "song" (
             id SERIAL,
@@ -843,11 +851,26 @@ func (store *SongStore) createSongTable() error {
             color INTEGER NOT NULL,
             queue_client_id VARCHAR,
             queue_guild_id VARCHAR,
-            PRIMARY KEY (id),
+            PRIMARY KEY (id)
+        );
+
+        DO $$
+        DECLARE X BOOL := (
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'schema_name'
+                    AND table_name = 'queue'
+                )
+            );
+        BEGIN
+        IF X THEN
+            ALTER TABLE "song"
+            ADD CONSTRAINT "queue_fk"
             FOREIGN KEY (queue_client_id, queue_guild_id)
                 REFERENCES "queue" (client_id, guild_id)
-                    ON DELETE CASCADE
-        );
+                    ON DELETE CASCADE;
+        END IF;
+        END $$;
         `,
 	); err != nil {
 		store.log.Tracef(
@@ -872,7 +895,7 @@ func (store *SongStore) createInactiveSongTable() error {
 		"[S%d]Start: Create psql table (if not exists)", i,
 	)
 
-	if _, err := store.con.Exec(
+	if _, err := store.db.Exec(
 		`
         CREATE TABLE IF NOT EXISTS "inactive_song" (
             id SERIAL,
@@ -885,11 +908,26 @@ func (store *SongStore) createInactiveSongTable() error {
             queue_client_id VARCHAR,
             queue_guild_id VARCHAR,
             added timestamp DEFAULT ((CURRENT_TIMESTAMP)),
-            PRIMARY KEY (id),
+            PRIMARY KEY (id)
+        );
+
+        DO $$
+        DECLARE X BOOL := (
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'schema_name'
+                    AND table_name = 'queue'
+                )
+            );
+        BEGIN
+        IF X THEN
+            ALTER TABLE "inactive_song"
+            ADD CONSTRAINT "queue_fk"
             FOREIGN KEY (queue_client_id, queue_guild_id)
                 REFERENCES "queue" (client_id, guild_id)
-                    ON DELETE CASCADE
-        );
+                    ON DELETE CASCADE;
+        END IF;
+        END $$;
         `,
 	); err != nil {
 		store.log.Tracef(
@@ -900,5 +938,51 @@ func (store *SongStore) createInactiveSongTable() error {
 	store.log.WithField(
 		"Latency", time.Since(t),
 	).Tracef("[S%d]Done : psql table created", i)
+	return nil
+}
+
+// dropSongTable drops the "song" table.
+func (store *SongStore) dropSongTable() error {
+	i, t := store.idx, time.Now()
+	store.idx++
+
+	store.log.WithField("TableName", "song").Tracef(
+		"[S%d]Start: Drop psql table (if exists)", i,
+	)
+
+	if _, err := store.db.Exec(
+		`DROP TABLE IF EXISTS "song"`,
+	); err != nil {
+		store.log.Tracef(
+			"[S%d]Error: %v", i, err,
+		)
+		return err
+	}
+	store.log.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[S%d]Done : psql table dropped", i)
+	return nil
+}
+
+// dropInactiveSongTable drops the "inactive_song" table.
+func (store *SongStore) dropInactiveSongTable() error {
+	i, t := store.idx, time.Now()
+	store.idx++
+
+	store.log.WithField("TableName", "inactive_song").Tracef(
+		"[S%d]Start: Drop psql table (if exists)", i,
+	)
+
+	if _, err := store.db.Exec(
+		`DROP TABLE IF EXISTS "inactive_song"`,
+	); err != nil {
+		store.log.Tracef(
+			"[S%d]Error: %v", i, err,
+		)
+		return err
+	}
+	store.log.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[S%d]Done : psql table dropped", i)
 	return nil
 }
