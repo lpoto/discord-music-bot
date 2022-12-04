@@ -19,6 +19,7 @@ RUN adduser -D -g '' appuser
 
 ADD ./src /app
 WORKDIR /app
+ADD ./README.md /app/README.md
 
 ADD ./asset /go/asset
 
@@ -42,4 +43,3 @@ WORKDIR /go/bin
 USER appuser
 
 ENTRYPOINT ["/go/bin/music_bot"]
-

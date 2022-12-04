@@ -71,7 +71,7 @@ func main() {
 	)
 	helpFileParam := flag.String(
 		"helpFiles",
-		"../conf/help.txt",
+		"../README.md",
 		"File with information about the commands",
 	)
 	flag.Parse()
