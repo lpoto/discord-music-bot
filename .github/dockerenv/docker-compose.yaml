@@ -7,10 +7,10 @@ services:
       dockerfile: .dockerenv/Dockerfile
     container_name: music-bot
     restart: unless-stopped
-    command: "-configFiles=/go/bin/conf/config.yaml -helpFiles=/go/bin/conf/help.txt"
+    command: "-configFiles=/go/bin/conf/config.yaml -helpFiles=/go/bin/conf/README.md"
     volumes:
-      - ../conf/config.yaml:/go/bin/conf/config.yaml
-      - ../conf/help.txt:/go/bin/conf/help.txt
+      - ../config.yaml:/go/bin/conf/config.yaml
+      - ../README.md:/go/bin/conf/help.txt
     depends_on:
       postgres:
         condition: service_started

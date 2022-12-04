@@ -66,7 +66,7 @@ func main() {
 
 	configFileParam := flag.String(
 		"configFiles",
-		"../conf/config.yaml",
+		"../config.yaml",
 		"File with configuration",
 	)
 	helpFileParam := flag.String(
