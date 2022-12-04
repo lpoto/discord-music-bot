@@ -18,16 +18,16 @@
 ## Running the bot
 
 ```bash
-docker-compose -f .dockerenv/docker-compose.yaml up
+docker-compose -f .github/dockerenv/docker-compose.yaml up
 ```
 
 ## Running tests
 Tests are run with github's CI, but to run them locally:
 
 ```bash
-docker-compose -f .dockerenv/docker-compose.test.yaml up -d
+docker-compose -f .github/dockerenv/docker-compose.test.yaml up -d
 
-docker-compose -f .dockerenv/docker-compose.test.yaml exec bot bash
+docker-compose -f .github/dockerenv/docker-compose.test.yaml exec bot bash
 go test ./... -p 1
 ```
 

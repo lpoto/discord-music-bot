@@ -34,39 +34,6 @@ func (s *YoutubeSearchTestSuite) TestIntegrationGetSongs() {
 	s.Len(songs, len(queries))
 }
 
-// TestIntegrationGetSongsVerifyQueryResults gets songs by queries and
-// checks the correctness of the returned results.
-func (s *YoutubeSearchTestSuite) TestIntegrationGetSongsVerifyQueryResults() {
-	queries := []string{
-		"red hot chili peppers snow (Hey Oh)",
-		"AC/DC - Thunderstruck (Official Video)",
-	}
-
-	songs := s.search.GetSongs(queries)
-
-	s.Len(songs, len(queries))
-
-	s.Equal(
-		"Red Hot Chili Peppers - Snow (Hey Oh) (Official Music Video)",
-		songs[0].Name,
-	)
-	s.Equal(349, songs[0].LengthSeconds)
-	s.Equal("yuFI5KSPAt4", songs[0].VideoID)
-	s.Equal(
-		"https://www.youtube.com/watch?v=yuFI5KSPAt4",
-		songs[0].Url,
-	)
-
-	s.Equal("AC/DC - Thunderstruck (Official Video)", songs[1].Name)
-	s.Equal("v2AC41dglnM", songs[1].VideoID)
-	s.Equal(293, songs[1].LengthSeconds)
-	s.Equal(
-		"https://www.youtube.com/watch?v=v2AC41dglnM",
-		songs[1].Url,
-	)
-
-}
-
 // TestIntegrationGetSongsVerifyUrlResults gets songs by urls and
 // checks the correctness of the returned results.
 func (s *YoutubeSearchTestSuite) TestIntegrationGetSongsVerifyUrlResults() {

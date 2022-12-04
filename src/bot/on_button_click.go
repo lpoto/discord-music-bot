@@ -61,6 +61,8 @@ func (bot *Bot) forwardButtonClick(s *discordgo.Session, i *discordgo.Interactio
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
 	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
+	queue, _ = bot.datastore.Song().UpdateQueueWithSongs(queue)
+
 	bot.service.Queue().IncrementQueueOffset(queue)
 	if err := bot.datastore.Queue().UpdateQueue(queue); err != nil {
 		bot.Errorf("Error on forward button click: %v", err)
@@ -76,6 +78,8 @@ func (bot *Bot) backwardButtonClick(s *discordgo.Session, i *discordgo.Interacti
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
 	queue, _ := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
+	queue, _ = bot.datastore.Song().UpdateQueueWithSongs(queue)
+
 	bot.service.Queue().DecrementQueueOffset(queue)
 	if err := bot.datastore.Queue().UpdateQueue(queue); err != nil {
 		bot.Errorf("Error on backward button click: %v", err)
