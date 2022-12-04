@@ -8,9 +8,9 @@ import (
 	"discord-music-bot/bot/slash_command"
 	"discord-music-bot/bot/updater"
 	"discord-music-bot/builder"
-	"discord-music-bot/client/youtube"
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
+	"discord-music-bot/youtube"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -25,7 +25,7 @@ type Bot struct {
 	service         *service.Service
 	builder         *builder.Builder
 	datastore       *datastore.Datastore
-	youtubeClient   *youtube.YoutubeClient
+	youtube         *youtube.Youtube
 	audioplayers    *audioplayer.AudioPlayersMap
 	queueUpdater    *updater.QueueUpdater
 	blockedCommands *blocked_command.BlockedCommands
@@ -40,7 +40,6 @@ type Configuration struct {
 	Builder       *builder.Configuration             `yaml:"Builder" validate:"required"`
 	SlashCommands *slash_command.SlashCommandsConfig `yaml:"SlashCommands" validate:"required"`
 	Modals        *modal.ModalsConfig                `yaml:"Modals"`
-	Youtube       *youtube.Configuration             `yaml:"Youtube" validate:"required"`
 	MaxAloneTime  time.Duration                      `yaml:"MaxAloneTime" validate:"required"`
 }
 
@@ -59,7 +58,7 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 		service:         service.NewService(),
 		builder:         builder.NewBuilder(config.Builder),
 		datastore:       datastore.NewDatastore(config.Datastore),
-		youtubeClient:   youtube.NewYoutubeClient(config.Youtube),
+		youtube:         youtube.NewYoutube(),
 		config:          config,
 		audioplayers:    audioplayer.NewAudioPlayersMap(),
 		blockedCommands: blocked_command.NewBlockedCommands(),

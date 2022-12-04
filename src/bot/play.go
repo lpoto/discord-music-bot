@@ -27,7 +27,9 @@ func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) err
 	bot.WithField("GuildID", guildID).Trace("Play request")
 
 	ap := audioplayer.NewAudioPlayer(
-		s, guildID,
+		s,
+		bot.youtube,
+		guildID,
 		audioplayer.NewDeferFunctions(
 			bot.audioplayerDefaultDefer,
 			bot.audioplayerDefaultErrorDefer,
