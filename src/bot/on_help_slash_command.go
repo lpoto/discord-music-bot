@@ -16,7 +16,8 @@ func (bot *Bot) onHelpSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: help,
-			Flags:   discordgo.MessageFlagsEphemeral,
+			Flags: discordgo.MessageFlagsEphemeral +
+				discordgo.MessageFlagsSupressEmbeds,
 		},
 	}); err != nil {
 		bot.WithField("GuildID", i.GuildID).Errorf(

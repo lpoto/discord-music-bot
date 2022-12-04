@@ -66,12 +66,12 @@ func main() {
 
 	configFileParam := flag.String(
 		"configFiles",
-		"../conf/config.yaml",
+		"../config.yaml",
 		"File with configuration",
 	)
 	helpFileParam := flag.String(
 		"helpFiles",
-		"../conf/help.txt",
+		"../README.md",
 		"File with information about the commands",
 	)
 	flag.Parse()

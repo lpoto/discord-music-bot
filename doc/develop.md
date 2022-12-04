@@ -10,10 +10,9 @@
 
 ## Prerequisites
 
-1. Create the file `./src/config.yaml` then copy and modify the contents
-   from [./conf/config.example.yaml](./conf/config.example.yaml).
+1. Create the file `./config.yaml` then copy and modify the contents
+   from [./config.example.yaml](./config.example.yaml).
 2. Make sure the datastore values match an existing postgresql instance.
-3. Update [help.txt](./conf/help.txt) if necessary.
 
 ## Running the bot
 
@@ -22,6 +21,7 @@ docker-compose -f .github/dockerenv/docker-compose.yaml up
 ```
 
 ## Running tests
+
 Tests are run with github's CI, but to run them locally:
 
 ```bash
