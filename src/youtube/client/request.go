@@ -1,4 +1,4 @@
-package base
+package client
 
 import (
 	"encoding/json"
@@ -21,10 +21,33 @@ type PathParam struct {
 	V string
 }
 
-// NewRequest constructs a new http request with url
+// NewWatchEndpointRequest creates a get request to youtube's /watch
+// endpoint with v=?videoID where videoID is the provided videoID.
+// Returns response bytes, request's url and error (if any).
+func (client *YoutubeClient) NewWatchEndpointRequest(videoID string) ([]byte, string, error) {
+	req, _ := client.newRequest("GET", "/watch")
+	req.AddQueryParam("v", videoID)
+	url := req.url()
+	b, err := req.doAndRead()
+	return b, url, err
+}
+
+// NewSearchRequest creates a get request to youtube's /results
+// endpoint with search_query=?query where query is the provided string.
+// Returns response bytes, request's url and error (if any).
+func (client *YoutubeClient) NewSearchRequest(query string) ([]byte, string, error) {
+	req, _ := client.newRequest("GET", "/results")
+	req.AddQueryParam("search_query", query)
+	url := req.url()
+	b, err := req.doAndRead()
+	return b, url, err
+
+}
+
+// newRequest constructs a new http request with url
 // Returns error if invalid pathParams provided.
 // equal to client's baseUrl + the provided endpoint.
-func (client *BaseClient) NewRequest(method string, endpoint string, pathParams ...PathParam) (*Request, error) {
+func (client *YoutubeClient) newRequest(method string, endpoint string, pathParams ...PathParam) (*Request, error) {
 	url, err := client.newUrl(endpoint, pathParams...)
 	if err != nil {
 		return nil, err
@@ -69,7 +92,7 @@ func (r *Request) AddQueryParam(k string, v string) *Request {
 
 func (r *Request) AddPathParam(k string, v string) *Request {
 
-	u, err := url.QueryUnescape(r.Url())
+	u, err := url.QueryUnescape(r.url())
 	if err == nil {
 		u = strings.ReplaceAll(
 			u,
@@ -82,12 +105,12 @@ func (r *Request) AddPathParam(k string, v string) *Request {
 }
 
 // Do sends a http request and returns the response
-func (r *Request) Do() (*http.Response, error) {
+func (r *Request) do() (*http.Response, error) {
 	return http.DefaultClient.Do(r.Request)
 }
 
 // DoAndRead sends a http request and reads the response's body
-func (r *Request) DoAndRead() ([]byte, error) {
+func (r *Request) doAndRead() ([]byte, error) {
 	resp, err := http.DefaultClient.Do(r.Request)
 	if err != nil {
 		return nil, err
@@ -101,8 +124,8 @@ func (r *Request) DoAndRead() ([]byte, error) {
 
 // DoAndRead sends a http request and unmarshalls
 // the response's body to the provided interface.
-func (r *Request) DoAndUnmarshall(i interface{}) error {
-	body, err := r.DoAndRead()
+func (r *Request) doAndUnmarshall(i interface{}) error {
+	body, err := r.doAndRead()
 	if err != nil {
 		return err
 	}
@@ -110,11 +133,11 @@ func (r *Request) DoAndUnmarshall(i interface{}) error {
 }
 
 // Url returns the request's url as a string
-func (request *Request) Url() string {
+func (request *Request) url() string {
 	return request.URL.String()
 }
 
-func (client *BaseClient) newUrl(endpoint string, pathParams ...PathParam) (string, error) {
+func (client *YoutubeClient) newUrl(endpoint string, pathParams ...PathParam) (string, error) {
 	for _, p := range pathParams {
 		endpoint = strings.ReplaceAll(
 			endpoint,

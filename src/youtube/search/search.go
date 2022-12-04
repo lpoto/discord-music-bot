@@ -1,30 +1,32 @@
-package youtube
+package search
 
 import (
+	"bytes"
 	"discord-music-bot/model"
+	"discord-music-bot/youtube/client"
 	"errors"
+	"regexp"
 	"strconv"
 	"sync"
-	"time"
 )
 
-// SearchSongs searches the provided queries on the youtube and
+type Search struct {
+	client *client.YoutubeClient
+}
+
+// NewSearch constructs an object that handles
+// searching songs on youtube either by url or query
+func NewSearch() *Search {
+	return &Search{
+		client: client.NewYoutubeClient(),
+	}
+}
+
+// GetSongs searches the provided queries on the youtube and
 // recieved the found videos' information. Always returns the first
 // search result. If the query is a youtube video url, the url is used
 // for fetching the info.
-func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
-	i, t := client.GetIdx(), time.Now()
-
-	client.Tracef("[%d]Youtube start: Search %d song/s on Youtube", i, len(queries))
-
-	if len(queries) > client.Config.MaxParallelQueries {
-		client.Tracef(
-			"[%d]Youtube error: Tried to query more than %d songs",
-			i,
-			client.Config.MaxParallelQueries,
-		)
-		return []*model.SongInfo{}
-	}
+func (s *Search) GetSongs(queries []string) []*model.SongInfo {
 	added := make(map[string]struct{})
 	songBuffer := make(chan *model.SongInfo, len(queries))
 	var wg sync.WaitGroup
@@ -49,9 +51,8 @@ func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
 				wg.Done()
 				wg2.Done()
 			}()
-			info, err := client.searchSong(query)
+			info, err := s.getSong(query)
 			if err != nil {
-				client.Tracef("[%d]Youtube error: %v", i, err)
 				return
 			}
 			if prevWG != nil {
@@ -60,7 +61,6 @@ func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
 			select {
 			case songBuffer <- info:
 			default:
-				client.Panic("Song buffer full")
 			}
 		}(query, prevWG)
 
@@ -84,23 +84,16 @@ func (client *YoutubeClient) SearchSongs(queries []string) []*model.SongInfo {
 				break songLoop
 			}
 		}
-		client.WithField(
-			"Latency", time.Since(t),
-		).Tracef("[%d]Youtube done : Found %d song/s", i, len(songs))
 		return songs
 	}
-	client.WithField(
-		"Latency", time.Since(t),
-	).Tracef("[%d]Youtube done : Found no songs", i)
 	return []*model.SongInfo{}
 }
 
-func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
-	endpoint := YoutubeVideoEndpoint
+func (s *Search) getSong(q string) (*model.SongInfo, error) {
 	videoID := ""
 
-	if id, ok := client.extractYoutubeVideoID(q); !ok {
-		if id2, err := client.getVideoIDFromQuery(q); err != nil {
+	if id, ok := s.extractYoutubeVideoID(q); !ok {
+		if id2, err := s.getVideoIDFromQuery(q); err != nil {
 			return nil, err
 		} else {
 			videoID = id2
@@ -109,25 +102,21 @@ func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
 		videoID = id
 	}
 
-	req := client.Get(endpoint).AddQueryParam(
-		YoutubeVideoIDQueryParam,
-		videoID,
-	)
-
-	info := new(model.SongInfo)
-	info.Url = req.Url()
-
-	b, err := req.DoAndRead()
+	b, url, err := s.client.NewWatchEndpointRequest(videoID)
 	if err != nil {
 		return nil, err
 	}
-	s := string(b)
-	content := client.getRegExpGroupValues(
+
+	info := new(model.SongInfo)
+	info.Url = url
+
+	str := string(b)
+	content := s.getRegExpGroupValues(
 		`"videoDetails":{.*?`+
 			`("videoId":"(?P<videoID>.*?)")|`+
 			`("title":"(?P<title>.*?)")|`+
 			`("lengthSeconds":"(?P<lengthSeconds>.*?)")`,
-		s,
+		str,
 		[]string{"videoID", "title", "lengthSeconds"},
 	)
 	if v, ok := content["title"]; ok && len(v) > 0 {
@@ -149,26 +138,61 @@ func (client *YoutubeClient) searchSong(q string) (*model.SongInfo, error) {
 	} else {
 		return nil, errors.New("Failed to extract duration for song query: " + q)
 	}
-	info.Name = client.unescapeHTML(info.Name)
+	info.Name = s.unescapeHTML(info.Name)
 	return info, nil
 }
 
-func (client *YoutubeClient) getVideoIDFromQuery(query string) (string, error) {
-
-	r := client.Get("/results").AddQueryParam("search_query", query)
-
-	body, err := r.DoAndRead()
+func (s *Search) getVideoIDFromQuery(query string) (string, error) {
+	body, _, err := s.client.NewSearchRequest(query)
 	if err != nil {
 		return query, err
 	}
-	s := string(body)
-	content := client.getRegExpGroupValues(
+
+	str := string(body)
+	content := s.getRegExpGroupValues(
 		`"videoId":"(?P<videoID>.*?)"`,
-		s,
+		str,
 		[]string{"videoID"},
 	)
 	if v, ok := content["videoID"]; ok {
 		return v, nil
 	}
 	return query, errors.New("Invalid query param: " + query)
+}
+
+func (s *Search) extractYoutubeVideoID(url string) (string, bool) {
+	content := s.getRegExpGroupValues(
+		`youtube.*watch\?v=(?P<videoID>[^&\/]*)`,
+		url,
+		[]string{"videoID"},
+	)
+	v, ok := content["videoID"]
+	return v, ok
+}
+
+func (s *Search) getRegExpGroupValues(reString string, str string, groups []string) map[string]string {
+	re := regexp.MustCompile(reString)
+	matches := re.FindAllStringSubmatch(string(str), len(groups))
+	values := make(map[string]string)
+	for k, g := range groups {
+		for i, v := range re.SubexpNames() {
+			if k < len(matches) &&
+				i < len(matches[k]) &&
+				v == g &&
+				len(matches[k][i]) > 0 {
+
+				values[g] = matches[k][i]
+			}
+		}
+	}
+	return values
+}
+
+// unescapeHTML replaces \u0026 with &, \u003e with > and \u003c with <
+func (s *Search) unescapeHTML(str string) string {
+	b := []byte(str)
+	b = bytes.Replace(b, []byte("\\u003c"), []byte("<"), -1)
+	b = bytes.Replace(b, []byte("\\u003e"), []byte(">"), -1)
+	b = bytes.Replace(b, []byte("\\u0026"), []byte("&"), -1)
+	return string(b)
 }

@@ -28,13 +28,13 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	}
 
 	// There is a limit for a number of songs that may be queried at once
-	if len(queries) > bot.youtubeClient.Config.MaxParallelQueries {
+	if len(queries) > 100 {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: fmt.Sprintf(
 					"Cannot query more than %d songs at once",
-					bot.youtubeClient.Config.MaxParallelQueries,
+					100,
 				),
 				Flags: discordgo.MessageFlagsEphemeral,
 			},
@@ -44,7 +44,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 
 	bot.queueUpdater.AddInteraction(s, i.Interaction)
 
-	songInfos := bot.youtubeClient.SearchSongs(queries)
+	songInfos := bot.youtube.Search().GetSongs(queries)
 	if len(songInfos) == 0 {
 		return
 	}
