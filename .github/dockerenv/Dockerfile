@@ -19,9 +19,9 @@ RUN adduser -D -g '' appuser
 
 ADD ./src /app
 WORKDIR /app
-ADD ./README.md /app/README.md
 
 ADD ./asset /go/asset
+ADD ./README.md /go/README.md
 
 # Build the binary
 RUN GOOS=linux go build -ldflags="-w -s" -a -o /go/bin/music_bot .
@@ -37,6 +37,7 @@ COPY --from=builder /etc/passwd /etc/passwd
 # Copy our static executable
 COPY --from=builder /go/bin/music_bot /go/bin/music_bot
 COPY --from=builder /go/asset /go/asset
+COPY --from=builder /go/README.md /go/README.md
 
 WORKDIR /go/bin
 
