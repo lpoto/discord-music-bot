@@ -791,22 +791,21 @@ func (store *SongStore) createSongTable() error {
         );
 
         DO $$
-        DECLARE X BOOL := (
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'schema_name'
-                    AND table_name = 'queue'
-                )
-            );
+        DECLARE
+            info_table information_schema.tables%rowtype;
         BEGIN
-        IF X THEN
+        SELECT *
+        FROM information_schema.tables
+        INTO info_table
+        WHERE table_name = 'queue';
+
+        IF FOUND THEN
             ALTER TABLE "song"
-            ADD CONSTRAINT "queue_fk"
-            FOREIGN KEY (queue_client_id, queue_guild_id)
+            ADD FOREIGN KEY (queue_client_id, queue_guild_id)
                 REFERENCES "queue" (client_id, guild_id)
                     ON DELETE CASCADE;
         END IF;
-        END $$;
+        END $$
         `,
 	); err != nil {
 		store.log.Tracef(
@@ -848,22 +847,21 @@ func (store *SongStore) createInactiveSongTable() error {
         );
 
         DO $$
-        DECLARE X BOOL := (
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'schema_name'
-                    AND table_name = 'queue'
-                )
-            );
+        DECLARE
+            info_table information_schema.tables%rowtype;
         BEGIN
-        IF X THEN
+        SELECT *
+        FROM information_schema.tables
+        INTO info_table
+        WHERE table_name = 'queue';
+
+        IF FOUND THEN
             ALTER TABLE "inactive_song"
-            ADD CONSTRAINT "queue_fk"
-            FOREIGN KEY (queue_client_id, queue_guild_id)
+            ADD FOREIGN KEY (queue_client_id, queue_guild_id)
                 REFERENCES "queue" (client_id, guild_id)
                     ON DELETE CASCADE;
         END IF;
-        END $$;
+        END $$
         `,
 	); err != nil {
 		store.log.Tracef(
