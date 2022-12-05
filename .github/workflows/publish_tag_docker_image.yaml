@@ -5,6 +5,8 @@ name: Publish Version Tag Docker Image
 
 on:
   workflow_dispatch:
+    branches:
+      - main
   push:
     tags:
       - v.**

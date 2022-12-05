@@ -6,6 +6,8 @@ name: Publish Latest Docker image
 on:
   workflow_run:
     workflows: [Go Test]
+    branches:
+      - main
     types:
       - completed
 
