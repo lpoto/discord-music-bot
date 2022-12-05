@@ -1,20 +1,23 @@
-name: Publish Docker Image
+# Publish docker image lpoto/discord_music_bot:latest
+# to ghcr.io
+# Run this after tests successfully complete on main
+name: Publish Latest Docker image
 
 on:
-  workflow_dispatch:
   workflow_run:
     workflows: [Go Test]
-    branches:
-      - main
     types:
       - completed
+
   push:
     tags:
       - v.**
 
 jobs:
   push_to_registry:
-    name: Push Docker image to Docker Hub
+    name: Push Docker image with latest version to Docker Hub
+    # make sure the tests were successful
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
@@ -39,4 +42,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/discord_music_bot:${{ steps.tag.outputs.TAG_NAME }}
-            ghcr.io/${{ github.repository_owner }}/discord_music_bot:latest
+  fallback:
+    runs-on: ubtuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - run: echo "First workflow was a failure"
