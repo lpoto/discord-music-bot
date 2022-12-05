@@ -19,7 +19,7 @@ services:
     container_name: discord-postgres-test
     restart: unless-stopped
     ports:
-        - 5432:5432
+        - 5433:5432
     environment:
         POSTGRES_DB: discord_bot_test
         POSTGRES_USER: postgres
