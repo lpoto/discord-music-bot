@@ -12,12 +12,15 @@
 
 1. Create the file `./config.yaml` then copy and modify the contents
    from [./config.example.yaml](./config.example.yaml).
-2. Make sure the datastore values match an existing postgresql instance.
+2. Create a [discord token] and add it to `./config.yaml`.
+3. Make sure the `Datastore/Postgres` values in `./config.yaml`
+   match a running postgresql instance.
 
 ## Running the bot
 
 ```bash
-docker-compose -f .github/dockerenv/docker-compose.yaml up
+cd ./src
+go run .
 ```
 
 ## Running tests
