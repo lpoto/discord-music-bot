@@ -41,7 +41,7 @@ func (s *QueueStoreTestSuite) SetupTest() {
 
 // TearDownSuite runs after all tests have been run and destroys
 // the queue store and closes database connection.
-func (s *QueueStoreTestSuite) TeardownSuite() {
+func (s *QueueStoreTestSuite) TearDownSuite() {
 	err := s.store.Destroy()
 	s.NoError(err)
 
