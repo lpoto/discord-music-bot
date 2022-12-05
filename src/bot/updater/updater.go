@@ -8,34 +8,45 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
 type QueueUpdater struct {
-	mutex              sync.Mutex
-	lastUpdated        map[string]time.Time
-	needUpdate         map[string]struct{}
-	interactionsBuffer map[string]chan *discordgo.Interaction
-	builder            *builder.Builder
-	datastore          *datastore.Datastore
-	audioplayers       *audioplayer.AudioPlayersMap
-	maxAloneTime       time.Duration
-	ready              func() bool
+	log                 *log.Logger
+	mutex               sync.RWMutex
+	interactionsBuffer  map[string]chan *discordgo.Interaction
+	builder             *builder.Builder
+	datastore           *datastore.Datastore
+	audioplayers        *audioplayer.AudioPlayersMap
+	maxAloneTime        time.Duration
+	ready               func() bool
+	queueRequests       map[string]chan struct{}
+	queueRequestsMutex  sync.Mutex
+	queueRunning        map[string]struct{}
+	queueRunningMutex   sync.Mutex
+	onFailureFuncs      map[string]chan func()
+	onFailureFuncsMutex sync.Mutex
 }
 
 // NewQueueUpdater constructs a new object that
 // handles updating queues
-func NewQueueUpdater(builder *builder.Builder, maxAloneTime time.Duration, datastore *datastore.Datastore, audioplayers *audioplayer.AudioPlayersMap, ready func() bool) *QueueUpdater {
+func NewQueueUpdater(log *log.Logger, builder *builder.Builder, maxAloneTime time.Duration, datastore *datastore.Datastore, audioplayers *audioplayer.AudioPlayersMap, ready func() bool) *QueueUpdater {
 	return &QueueUpdater{
-		mutex:              sync.Mutex{},
-		lastUpdated:        make(map[string]time.Time),
-		needUpdate:         make(map[string]struct{}),
-		interactionsBuffer: make(map[string]chan *discordgo.Interaction),
-		builder:            builder,
-		datastore:          datastore,
-		audioplayers:       audioplayers,
-		maxAloneTime:       maxAloneTime,
-		ready:              ready,
+		mutex:               sync.RWMutex{},
+		log:                 log,
+		interactionsBuffer:  make(map[string]chan *discordgo.Interaction),
+		builder:             builder,
+		datastore:           datastore,
+		audioplayers:        audioplayers,
+		maxAloneTime:        maxAloneTime,
+		ready:               ready,
+		queueRunning:        make(map[string]struct{}),
+		queueRequests:       make(map[string]chan struct{}),
+		queueRunningMutex:   sync.Mutex{},
+		queueRequestsMutex:  sync.Mutex{},
+		onFailureFuncs:      make(map[string]chan func()),
+		onFailureFuncsMutex: sync.Mutex{},
 	}
 }
 
@@ -66,110 +77,58 @@ func (updater *QueueUpdater) AddInteraction(s *discordgo.Session, i *discordgo.I
 	}
 }
 
-// NeedsUpdate marks that the queue in the guild identified
-// by the provided ID needs to be updated
-func (updater *QueueUpdater) NeedsUpdate(guildID string) {
-	updater.mutex.Lock()
-	defer updater.mutex.Unlock()
-
-	if _, ok := updater.needUpdate[guildID]; !ok {
-		updater.needUpdate[guildID] = struct{}{}
-	}
-}
-
 // Update fetches the queue from the datastore and updates it.
 // It first tries to update it from the interactions stored in the
 // bot's queueUpdateInteractionsBuffer, and if not successful from
 // the queue's channelID and messageID.
-// TODO: this function needs refactoring
-func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string) error {
-	updater.mutex.Lock()
+// Queue will be updated after timeout, if timeout is negative,
+// queue will just be marked as "needs update", but won't be updated.
+// WARNING: If queue has already been updated during the timeout,
+// it won't be updated again.
+func (updater *QueueUpdater) Update(s *discordgo.Session, guildID string, timeout time.Duration, onFailure func()) {
 
-	// NOTE: the queue no longer needs to be updated
-	if _, ok := updater.needUpdate[guildID]; !ok {
-		updater.mutex.Unlock()
-		return nil
-	}
-	updater.mutex.Unlock()
+	updater.log.WithFields(log.Fields{
+		"GuildID": guildID,
+		"Timeout": timeout,
+	}).Trace("Queue update requested")
 
-	defer func() {
-		// NOTE: queue has been updated, so it no longer
-		// needs an update
-		updater.mutex.Lock()
-		delete(updater.needUpdate, guildID)
-		updater.mutex.Unlock()
-	}()
-
-	clientID := s.State.User.ID
-
-	queue, err := updater.datastore.Queue().GetQueue(clientID, guildID)
-	if err != nil {
-		return err
-	}
-	queue, err = updater.datastore.Song().UpdateQueueWithSongs(queue)
-	if err != nil {
-		return err
-	}
-	var components []discordgo.MessageComponent
-	if !updater.ready() {
-		components = updater.builder.Queue().GetOfflineQueueComponents(queue)
-	} else if vc, ok := s.VoiceConnections[guildID]; ok && len(vc.ChannelID) > 0 {
-		components = updater.builder.Queue().GetMusicQueueComponents(queue)
-	} else {
-		components = updater.builder.Queue().GetInactiveQueueComponents(queue)
-
-	}
-	embed := updater.builder.Queue().MapQueueToEmbed(queue)
-
-	err = nil
-
-	updater.mutex.Lock()
-	buffer, ok := updater.interactionsBuffer[guildID]
-	updater.mutex.Unlock()
-
+	// NOTE: check if a queue is already running
+	// with it's requests buffer, if so, and it's buffer is empty
+	// add a struct to it, otherwise do nothing.
+	// (makes no sense to update more than once with same data)
+	updater.queueRequestsMutex.Lock()
+	c, ok := updater.queueRequests[guildID]
 	if !ok {
-		_, err = s.ChannelMessageEditComplex(
-			&discordgo.MessageEdit{
-				ID:         queue.MessageID,
-				Channel:    queue.ChannelID,
-				Embeds:     []*discordgo.MessageEmbed{embed},
-				Components: components,
-			})
-	} else {
-
-	updateLoop:
-		for {
-			select {
-			case i := <-buffer:
-				err = s.InteractionRespond(i, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseUpdateMessage,
-					Data: &discordgo.InteractionResponseData{
-						Embeds:     []*discordgo.MessageEmbed{embed},
-						Components: components,
-					},
-				})
-				if err != nil {
-					continue updateLoop
-				}
-				break updateLoop
-			default:
-				_, err = s.ChannelMessageEditComplex(
-					&discordgo.MessageEdit{
-						ID:         queue.MessageID,
-						Channel:    queue.ChannelID,
-						Embeds:     []*discordgo.MessageEmbed{embed},
-						Components: components,
-					})
-				break updateLoop
-			}
+		c = make(chan struct{}, 10)
+		updater.queueRequests[guildID] = c
+	}
+	updater.queueRequestsMutex.Unlock()
+	if len(c) == 0 {
+		select {
+		case c <- struct{}{}:
+		default:
 		}
 	}
-	if err == nil {
-		updater.mutex.Lock()
-		updater.lastUpdated[guildID] = time.Now()
-		updater.mutex.Unlock()
+	updater.onFailureFuncsMutex.Lock()
+	c2, ok := updater.onFailureFuncs[guildID]
+	if !ok {
+		c2 = make(chan func(), 100)
+		updater.onFailureFuncs[guildID] = c2
 	}
-	return err
+	updater.onFailureFuncsMutex.Unlock()
+	if onFailure != nil {
+		select {
+		case c2 <- onFailure:
+		default:
+		}
+	}
+	// NOTE: wait the timeout and then start the updating
+	// queue if it is not being updated already, or the
+	// requests buffer hasn't already been cleared while waiting.
+	if timeout > 0 {
+		time.Sleep(timeout)
+	}
+	go updater.runUpdaterQueue(s, guildID)
 }
 
 // GetInteractionsBuffer returns the interaction buffer for the provided guildID
@@ -201,7 +160,7 @@ func (updater *QueueUpdater) RunInactiveQueueUpdater(ctx context.Context, sessio
 			// check if the queue belonging to the guildiD should be updated
 			// Also check if there are no undefened listeners in that channel.
 			// If there aren't any for some time, dc the bot.
-			for _, guildID := range updater.audioplayers.Keys() {
+			for guildID := range session.VoiceConnections {
 				inactiveSince, ok := inactive[guildID]
 
 				// NOTE: the bot has been alone in the channel
@@ -240,15 +199,17 @@ func (updater *QueueUpdater) RunInactiveQueueUpdater(ctx context.Context, sessio
 // by the provided guildID
 func (updater *QueueUpdater) markQueueInactive(s *discordgo.Session, guildID string) {
 	if ap, ok := updater.audioplayers.Get(guildID); ok {
-		ap.AddDeferFunc(func(*discordgo.Session, string) {})
-		ap.Continue = false
-		ap.Stop()
+		ap.StopTerminate()
 	}
-	updater.NeedsUpdate(guildID)
+	//updater.Update(s, guildID, -1, nil)
 
 	if vc, ok := s.VoiceConnections[guildID]; ok {
 		vc.Disconnect()
 	}
+
+	updater.log.WithField("GuildID", guildID).Trace(
+		"Marked queue as inactive",
+	)
 }
 
 // hasNoListeners checks whethere there are no undefened members
@@ -291,4 +252,151 @@ outerMemberLoop:
 		}
 	}
 	return true
+}
+
+func (updater *QueueUpdater) runUpdaterQueue(s *discordgo.Session, guildID string) {
+	updater.queueRunningMutex.Lock()
+	_, ok := updater.queueRunning[guildID]
+	if !ok {
+		updater.queueRunning[guildID] = struct{}{}
+	}
+	updater.queueRunningMutex.Unlock()
+	if ok {
+		updater.log.WithField("GuildID", guildID).Trace(
+			"Queue updater queue already running",
+		)
+		return
+	}
+	updater.log.WithField("GuildID", guildID).Trace(
+		"Starting queue updater queue",
+	)
+
+	updater.queueRequestsMutex.Lock()
+	c, ok := updater.queueRequests[guildID]
+	updater.queueRequestsMutex.Unlock()
+
+	defer func() {
+		updater.queueRequestsMutex.Lock()
+		delete(updater.queueRequests, guildID)
+		updater.queueRequestsMutex.Unlock()
+		updater.queueRunningMutex.Lock()
+		delete(updater.queueRunning, guildID)
+		updater.queueRunningMutex.Unlock()
+		updater.onFailureFuncsMutex.Lock()
+		delete(updater.onFailureFuncs, guildID)
+		updater.onFailureFuncsMutex.Unlock()
+	}()
+
+	for {
+		select {
+		case _, ok := <-c:
+			if !ok {
+				return
+			}
+			if err := updater.updateQueue(s, guildID); err != nil {
+				updater.onFailureFuncsMutex.Lock()
+				c2, ok := updater.onFailureFuncs[guildID]
+				updater.onFailureFuncsMutex.Unlock()
+				if ok && c2 != nil {
+				onFailureLoop:
+					for {
+						select {
+						case f, ok := <-c2:
+							if !ok {
+								break onFailureLoop
+							}
+							f()
+						default:
+							break onFailureLoop
+						}
+					}
+				}
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (updater *QueueUpdater) updateQueue(s *discordgo.Session, guildID string) error {
+	updater.log.WithField("GuildID", guildID).Trace(
+		"Updating queue",
+	)
+	clientID := s.State.User.ID
+
+	queue, err := updater.datastore.Queue().GetQueue(clientID, guildID)
+	if err != nil {
+		updater.log.WithField("GuildID", guildID).Trace(
+			"No queue found, cannot update message",
+		)
+		return err
+	}
+	queue, err = updater.datastore.Song().UpdateQueueWithSongs(queue)
+	if err != nil {
+		updater.log.WithField("GuildID", guildID).Trace(
+			"No queue data, cannot update message",
+		)
+		return err
+	}
+	var components []discordgo.MessageComponent
+	if !updater.ready() {
+		components = updater.builder.Queue().GetOfflineQueueComponents(queue)
+	} else if vc, ok := s.VoiceConnections[guildID]; ok && vc.Ready {
+		components = updater.builder.Queue().GetMusicQueueComponents(queue)
+	} else {
+		components = updater.builder.Queue().GetInactiveQueueComponents(queue)
+
+	}
+	embed := updater.builder.Queue().MapQueueToEmbed(queue)
+
+	err = nil
+
+	updater.mutex.RLock()
+	buffer, ok := updater.interactionsBuffer[guildID]
+	updater.mutex.RUnlock()
+
+	if !ok {
+		buffer = make(chan *discordgo.Interaction)
+	}
+updateLoop:
+	for {
+		select {
+		case i := <-buffer:
+			err = s.InteractionRespond(i, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseUpdateMessage,
+				Data: &discordgo.InteractionResponseData{
+					Embeds:     []*discordgo.MessageEmbed{embed},
+					Components: components,
+				},
+			})
+			if err != nil {
+				continue updateLoop
+			}
+			updater.log.WithField("GuildID", guildID).Trace(
+				"Queue updated from interaction",
+			)
+			break updateLoop
+		default:
+			_, err = s.ChannelMessageEditComplex(
+				&discordgo.MessageEdit{
+					ID:         queue.MessageID,
+					Channel:    queue.ChannelID,
+					Embeds:     []*discordgo.MessageEmbed{embed},
+					Components: components,
+				})
+			if err == nil {
+				updater.log.WithField("GuildID", guildID).Trace(
+					"Queue updated by GuildID and ChannelID",
+				)
+			} else {
+				updater.log.WithField("GuildID", guildID).Tracef(
+					"Failed when updating queue: %v",
+					err,
+				)
+				return err
+			}
+			break updateLoop
+		}
+	}
+	return nil
 }

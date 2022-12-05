@@ -9,14 +9,14 @@ import (
 
 // onReady is a handler function called when discord emits
 // READY event
-func (bot *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
-	s.UpdateListeningStatus(
+func (bot *Bot) onReady(r *discordgo.Ready) {
+	bot.session.UpdateListeningStatus(
 		"/" + bot.config.SlashCommands.Help.Name,
 	)
 	bot._ready = true
 
 	// check if any queues should be removed from datastore
-	bot.cleanDiscordMusicQueues(s)
+	bot.cleanDiscordMusicQueues()
 
 	time.Sleep(500 * time.Millisecond)
 

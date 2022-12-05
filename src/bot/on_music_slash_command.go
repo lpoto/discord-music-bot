@@ -10,15 +10,15 @@ import (
 // command is called in the discord channel, this is not emmited through the
 // discord's websocket, but is rather called from INTERACTION_CREATE event when
 // the interaction's command data name matches the music slash command's name.
-func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (bot *Bot) onMusicSlashCommand(i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Music slash command")
 
 	// NOTE: only a single queue may be active in a guild at once
 	if queue, err := bot.datastore.Queue().GetQueue(
-		s.State.User.ID,
+		bot.session.State.User.ID,
 		i.GuildID,
 	); err == nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		bot.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: fmt.Sprintf(
@@ -37,14 +37,14 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	// Construct a new queue, send it to the channel
 	// and persist it in the datastore
 	queue := bot.builder.Queue().NewQueue(
-		s.State.User.ID,
+		bot.session.State.User.ID,
 		i.GuildID,
 		"", "",
 	)
 	embed := bot.builder.Queue().MapQueueToEmbed(queue)
 	components := bot.builder.Queue().GetMusicQueueComponents(queue)
 
-	err := s.InteractionRespond(
+	err := bot.session.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -60,7 +60,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 		)
 		return
 	}
-	msg, err := s.InteractionResponse(i.Interaction)
+	msg, err := bot.session.InteractionResponse(i.Interaction)
 	if err != nil {
 		bot.Errorf(
 			"Error when fetching interaction response message: %v",

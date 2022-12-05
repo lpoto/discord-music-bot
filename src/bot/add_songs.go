@@ -9,14 +9,14 @@ import (
 
 // addSongs responds to the provided interaction with the
 // add songs modal.
-func (bot *Bot) addSongs(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+func (bot *Bot) addSongs(i *discordgo.InteractionCreate) error {
 	bot.WithField("GuildID", i.GuildID).Trace("Send add songs modal")
 
 	m := modal.GetModal(
 		bot.config.Modals.AddSongs.Name,
 		bot.addSongsComponents(),
 	)
-	if err := s.InteractionRespond(
+	if err := bot.session.InteractionRespond(
 		i.Interaction,
 		&discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,

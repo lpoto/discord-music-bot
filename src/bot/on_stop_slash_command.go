@@ -6,12 +6,14 @@ import "github.com/bwmarrin/discordgo"
 // command is called in the discord channel, this is not emmited through the
 // discord's websocket, but is rather called from INTERACTION_CREATE event when
 // the interaction's command data name matches the stop slash command's name.
-func (bot *Bot) onStopSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (bot *Bot) onStopSlashCommand(i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Stop slash command")
 
-	queue, err := bot.datastore.Queue().GetQueue(s.State.User.ID, i.GuildID)
+	queue, err := bot.datastore.Queue().GetQueue(
+		bot.session.State.User.ID, i.GuildID,
+	)
 	if err != nil {
-		if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		if err := bot.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "There is no active music queue!",
@@ -25,8 +27,8 @@ func (bot *Bot) onStopSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 		}
 		return
 	}
-	if err := s.ChannelMessageDelete(queue.ChannelID, queue.MessageID); err != nil {
-		if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	if err := bot.session.ChannelMessageDelete(queue.ChannelID, queue.MessageID); err != nil {
+		if err := bot.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "Something went wrong!",
@@ -39,9 +41,9 @@ func (bot *Bot) onStopSlashCommand(s *discordgo.Session, i *discordgo.Interactio
 			)
 		}
 	}
-	bot.deleteQueue(s, i.GuildID, []string{queue.MessageID})
+	bot.deleteQueue(bot.session, i.GuildID, []string{queue.MessageID})
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	if err := bot.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: "Music has been stopped!",

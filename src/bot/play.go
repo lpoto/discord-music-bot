@@ -6,106 +6,133 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	log "github.com/sirupsen/logrus"
 )
 
 // play searches for a queue that belongs to the provided guildID
 // and starts playing it's headSong if no song is currently playing.
-func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) error {
+func (bot *Bot) play(guildID string, channelID string) error {
 	if len(channelID) == 0 {
 		return nil
 	}
+
 	if _, ok := bot.audioplayers.Get(guildID); ok {
 		// NOTE: audio has already been started from
 		// another source, do not continue
 		time.Sleep(300 * time.Millisecond)
 		if _, ok := bot.audioplayers.Get(guildID); ok {
+			// NOTE: should still update even when
+			// returning as there must be a reason
+			// for the play request
+			bot.queueUpdater.Update(
+				bot.session,
+				guildID,
+				100*time.Millisecond,
+				nil,
+			)
 			return nil
 		}
-		return nil
 	}
 
 	bot.WithField("GuildID", guildID).Trace("Play request")
 
-	ap := audioplayer.NewAudioPlayer(
-		s,
-		bot.youtube,
-		guildID,
-		audioplayer.NewDeferFunctions(
-			bot.audioplayerDefaultDefer,
-			bot.audioplayerDefaultErrorDefer,
-		),
-	)
+	ap := audioplayer.NewAudioPlayer(bot.youtube)
 
 	bot.audioplayers.Add(guildID, ap)
 	defer bot.audioplayers.Remove(guildID)
 
-	queue, err := bot.datastore.Queue().GetQueue(s.State.User.ID, guildID)
-	if err != nil {
-		return err
-	}
-	queue, err = bot.datastore.Song().UpdateQueueWithSongs(queue)
-	if err != nil {
-		return err
-	}
-	if queue.HeadSong == nil {
-		return nil
-	}
+	var err error = nil
 
-	if err := bot.joinVoice(s, guildID, channelID); err != nil {
-		return nil
+	// NOTE: make sure there is a ready voice connection
+	// for the audioplayer
+	voice, ok := bot.session.VoiceConnections[guildID]
+	if ok == false || voice.Ready == false {
+		err = bot.joinVoice(guildID, channelID)
 	}
-
-	// NOTE: always play the queue's headSong,
-	// as it is the song with the minimum position
-	// in the queue
-	song := queue.HeadSong
-
-	bot.WithField(
-		"GuildID", guildID,
-	).Tracef("Playing song: %s", song.Name)
-
-	if err := ap.Play(bot.ctx, song); err != nil {
-		if err.Error() == "Voice connection closed" {
-			// NOTE: stop playing since bot has been
-			// disconnected from the voice channel
-			return nil
-		}
-		bot.Errorf("Error when playing: %v", err)
-	}
-
-	select {
-	case <-bot.ctx.Done():
-		return nil
-	default:
-		continuePlaying := ap.Continue
-		bot.audioplayers.Remove(guildID)
-		if continuePlaying {
-			return bot.play(s, guildID, channelID)
-		}
-	}
-	return nil
-}
-
-// audioplayerDefaultDefer is the default function called
-// when the audioplayer finishes. This will only be called if
-// no other functions were passed into the audioplayer's deferfuncbuffer
-func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
-	queue, err := bot.datastore.Queue().GetQueue(
-		s.State.User.ID,
+	bot.queueUpdater.Update(
+		bot.session,
 		guildID,
+		100*time.Millisecond,
+		nil,
 	)
 	if err != nil {
-		return
+		return nil
 	}
-	queue, err = bot.datastore.Song().UpdateQueueWithSongs(queue)
-	if err != nil {
-		return
-	}
+playLoop:
+	for {
+		// NOTE: always play the queue's headSong,
+		// as it is the song with the minimum position
+		// in the queue.
+		song, err := bot.datastore.Song().GetHeadSongForQueue(
+			bot.session.State.User.ID,
+			guildID,
+		)
+		// Return if there is none
+		if err != nil {
+			bot.queueUpdater.Update(
+				bot.session,
+				guildID,
+				100*time.Millisecond,
+				nil,
+			)
+			return nil
+		}
+		voice, ok = bot.session.VoiceConnections[guildID]
+		if ok == false || !voice.Ready {
+			time.Sleep(300 * time.Second)
+			voice, ok = bot.session.VoiceConnections[guildID]
+			if ok == false || !voice.Ready {
+				bot.WithField("GuildID", guildID).Trace("Voice not ready")
+				bot.queueUpdater.Update(
+					bot.session,
+					guildID,
+					300*time.Millisecond,
+					nil,
+				)
+				return nil
+			}
+		}
 
+		bot.WithField(
+			"GuildID", guildID,
+		).Tracef("Playing song: %s", song.Url)
+
+		reason, err := ap.Play(bot.ctx, song, voice)
+		if err != nil {
+			bot.Errorf("Error when playing: %v")
+			bot.audioplayerOnError(bot.session, guildID)
+		}
+		switch reason {
+		case audioplayer.FinishedVoiceClosed:
+			bot.WithField("GuildID", guildID).Trace("Audioplayer Voice Closed")
+			return nil
+		case audioplayer.FinishedOK:
+			bot.WithField("GuildID", guildID).Trace("Audioplayer finished OK")
+			bot.audioplayerOnOK(bot.session, guildID)
+			continue playLoop
+		case audioplayer.FinishedTerminated:
+			bot.WithField("GuildID", guildID).Trace("Audioplayer Terminated")
+			return nil
+		default:
+			continue playLoop
+		}
+	}
+}
+
+// audioplayerOnOK is a function called when the audioplayer
+// finishes with OK finish reason.
+func (bot *Bot) audioplayerOnOK(s *discordgo.Session, guildID string) {
 	// NOTE: if loop is enabled in the queue
 	// push it's headSong to the back of the queue
 	// else just
-	if bot.builder.Queue().QueueHasOption(queue, model.Loop) {
+	if bot.datastore.Queue().QueueHasOption(
+		s.State.User.ID,
+		guildID,
+		model.Loop,
+	) {
+		bot.WithField("GuildID", guildID).Trace(
+			"Bot has loop enabled, pushing head song to back",
+		)
 		if err := bot.datastore.Song().PushHeadSongToBack(
 			s.State.User.ID,
 			guildID,
@@ -116,11 +143,24 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 			)
 		}
 	} else {
+		bot.WithField("GuildID", guildID).Trace(
+			"Bot does not have loop enabled, removing head song",
+		)
+		headsong, err := bot.datastore.Song().GetHeadSongForQueue(
+			s.State.User.ID,
+			guildID,
+		)
+		if err != nil {
+			bot.Errorf(
+				"Error when fetching song during play: %v", err,
+			)
+			return
+		}
 		// NOTE: persist queue's headSong to inactive song table
 		if err := bot.datastore.Song().PersistInactiveSongs(
 			s.State.User.ID,
 			guildID,
-			queue.HeadSong,
+			headsong,
 		); err != nil {
 			bot.Errorf(
 				"Error when removing song during play: %v", err,
@@ -137,14 +177,11 @@ func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
 			)
 		}
 	}
-
-	bot.queueUpdater.NeedsUpdate(guildID)
-	bot.queueUpdater.Update(s, guildID)
 }
 
-// audioplayerDefaultErrorDefer is the default function called
+// audioplayerOnError is the a function called
 // when the audioplayer finishes with error.
-func (bot *Bot) audioplayerDefaultErrorDefer(s *discordgo.Session, guildID string) {
+func (bot *Bot) audioplayerOnError(s *discordgo.Session, guildID string) {
 	// NOTE: if error occured when playing the head song,
 	// it should be removed
 
@@ -158,25 +195,29 @@ func (bot *Bot) audioplayerDefaultErrorDefer(s *discordgo.Session, guildID strin
 			"Error when removing song during play: %v", err,
 		)
 	}
-	bot.queueUpdater.NeedsUpdate(guildID)
-	bot.queueUpdater.Update(s, guildID)
 }
 
 // joinVoice connects to the voice channel identified by the provided guilID and
 // channelID, returns error on failure. If the client is already connected to the
 // voice channel, it does not connect again.
-func (bot *Bot) joinVoice(s *discordgo.Session, guildID string, channelID string) error {
-	if vc, ok := s.VoiceConnections[guildID]; ok && vc.ChannelID == channelID {
+func (bot *Bot) joinVoice(guildID string, channelID string) error {
+	bot.WithFields(log.Fields{
+		"GuildID":   guildID,
+		"ChannelID": channelID,
+	}).Trace("Joining voice")
+
+	vc, ok := bot.session.VoiceConnections[guildID]
+	if ok && vc.ChannelID == channelID {
 		return nil
 	}
-	if _, err := s.ChannelVoiceJoin(guildID, channelID, false, false); err != nil {
+	if _, err := bot.session.ChannelVoiceJoin(guildID, channelID, false, false); err != nil {
 		bot.Tracef("Could not join voice: %v", err)
 		if buffer, ok := bot.queueUpdater.GetInteractionsBuffer(guildID); ok {
 		responseLoop:
 			for i := 0; i < len(buffer); i++ {
 				select {
 				case interaction := <-buffer:
-					err := s.InteractionRespond(interaction, &discordgo.InteractionResponse{
+					err := bot.session.InteractionRespond(interaction, &discordgo.InteractionResponse{
 						Type: discordgo.InteractionResponseChannelMessageWithSource,
 						Data: &discordgo.InteractionResponseData{
 							Content: "Cannot join the channel, I may be missing permissions",

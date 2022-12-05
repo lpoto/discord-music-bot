@@ -7,7 +7,7 @@ import (
 
 type Youtube struct {
 	search *search.Search
-    stream *stream.Stream
+	stream *stream.Stream
 }
 
 // NewYoutube constructs an object that handles
@@ -15,7 +15,7 @@ type Youtube struct {
 func NewYoutube() *Youtube {
 	return &Youtube{
 		search: search.NewSearch(),
-        stream: stream.NewStream(),
+		stream: stream.NewStream(),
 	}
 }
 

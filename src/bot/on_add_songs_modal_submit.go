@@ -12,7 +12,7 @@ import (
 // submits the add songs modal in a discord servier. This
 // is called when the type of interaction is determined to be
 // add songs modal submit, in the onInteractionCreate function.
-func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (bot *Bot) onAddSongsModalSubmit(i *discordgo.InteractionCreate) {
 	bot.WithField("GuildID", i.GuildID).Trace("Add songs modal submit")
 
 	actionsRow := (i.ModalSubmitData().Components[0]).(*discordgo.ActionsRow)
@@ -29,7 +29,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 
 	// There is a limit for a number of songs that may be queried at once
 	if len(queries) > 100 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		bot.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: fmt.Sprintf(
@@ -42,7 +42,7 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 
-	bot.queueUpdater.AddInteraction(s, i.Interaction)
+	bot.queueUpdater.AddInteraction(bot.session, i.Interaction)
 
 	songInfos := bot.youtube.Search().GetSongs(queries)
 	if len(songInfos) == 0 {
@@ -57,14 +57,11 @@ func (bot *Bot) onAddSongsModalSubmit(s *discordgo.Session, i *discordgo.Interac
 	}
 
 	if err := bot.datastore.Song().PersistSongs(
-		s.State.User.ID,
+		bot.session.State.User.ID,
 		i.GuildID,
 		songs...,
 	); err != nil {
 		bot.Errorf("Error when submitting add songs modal: %v", err)
 		return
 	}
-
-	bot.queueUpdater.NeedsUpdate(i.GuildID)
-	bot.queueUpdater.Update(s, i.GuildID)
 }
