@@ -9,10 +9,6 @@ on:
     types:
       - completed
 
-  push:
-    tags:
-      - v.**
-
 jobs:
   push_to_registry:
     name: Push Docker image with latest version to Docker Hub
