@@ -168,6 +168,11 @@ func (s *QueueStoreTestSuite) TestIntegrationAddRemoveQueueOptions() {
 	)
 	s.NoError(err)
 
+	v := s.store.QueueHasOption(queue.ClientID, queue.GuildID, model.Loop)
+	s.Equal(true, v)
+	v = s.store.QueueHasOption(queue.ClientID, queue.GuildID, model.Paused)
+	s.Equal(true, v)
+
 	// Make sure the added options are there
 	queue, err = s.store.GetQueue(queue.ClientID, queue.GuildID)
 	s.NoError(err)
