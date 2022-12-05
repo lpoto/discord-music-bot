@@ -4,6 +4,9 @@
 name: Publish Latest Docker image
 
 on:
+  workflow_dispatch:
+    breanches:
+      - main
   workflow_run:
     workflows: [Go Test]
     branches:
