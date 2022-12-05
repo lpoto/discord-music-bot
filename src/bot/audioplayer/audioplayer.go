@@ -11,47 +11,48 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-const (
-	FinishedError       string = "Error"
-	FinishedOK          string = "Ok"
-	FinishedTerminated  string = "Terminated"
-	FinishedVoiceClosed string = "VoiceClosed"
-)
-
 type AudioPlayer struct {
 	youtube         *youtube.Youtube
 	streamSession   *stream.Session
-	stopReason      string
 	durationSeconds int
+	subscriptions   *Subscriptions
 	stop            bool
 }
 
 // NewAudioPlayer constructs an object that handles playing
 // audio in a discord's voice channel
 func NewAudioPlayer(yt *youtube.Youtube) *AudioPlayer {
-	return &AudioPlayer{
+	ap := &AudioPlayer{
 		youtube:         yt,
 		streamSession:   nil,
 		stop:            false,
-		stopReason:      FinishedOK,
+		subscriptions:   NewSubscriptions(),
 		durationSeconds: 0,
 	}
+	ap.subscriptions.Subscribe("pause", func() {
+		if ap.streamSession == nil {
+			return
+		}
+		ap.streamSession.SetPaused(true)
+	})
+	ap.subscriptions.Subscribe("unpause", func() {
+		if ap.streamSession == nil {
+			return
+		}
+		ap.streamSession.SetPaused(true)
+	})
+	ap.subscriptions.Subscribe("stop", func() {
+		ap.stop = true
+		if ap.streamSession == nil {
+			return
+		}
+		ap.streamSession.Stop()
+	})
+	return ap
 }
 
-// Pause pauses the current stream if there is any
-func (ap *AudioPlayer) Pause() {
-	if ap.streamSession == nil {
-		return
-	}
-	ap.streamSession.SetPaused(true)
-}
-
-// Pause resumes the current stream if there is any
-func (ap *AudioPlayer) Unpause() {
-	if ap.streamSession == nil {
-		return
-	}
-	ap.streamSession.SetPaused(false)
+func (ap *AudioPlayer) Subscriptions() *Subscriptions {
+	return ap.subscriptions
 }
 
 // IsPaused returns true if the audioplayer is currenthly
@@ -61,31 +62,6 @@ func (ap *AudioPlayer) IsPaused() bool {
 		return false
 	}
 	return ap.streamSession.Paused()
-}
-
-// StopOK stops the current stream with FinishedOK reason.
-func (ap *AudioPlayer) StopOK() {
-	ap.Stop(FinishedOK)
-}
-
-// StopOK stops the current stream with FinishedTerminated reason.
-func (ap *AudioPlayer) StopTerminate() {
-	ap.Stop(FinishedTerminated)
-}
-
-// StopOK stops the current stream with FinishedVoiceClosed reason.
-func (ap *AudioPlayer) StopVoiceClosed() {
-	ap.Stop(FinishedVoiceClosed)
-}
-
-// Stop stops the current stream, if there is any.
-func (ap *AudioPlayer) Stop(reason string) {
-	ap.stop = true
-	if ap.streamSession == nil {
-		return
-	}
-	ap.stopReason = reason
-	ap.streamSession.Stop()
 }
 
 // PlaybackPosition returns the duration of the currently playing
@@ -107,25 +83,17 @@ func (ap *AudioPlayer) Cleanup() {
 		ap.streamSession.Cleanup()
 		ap.streamSession = nil
 	}
-	ap.stopReason = FinishedOK
 	ap.stop = false
 	ap.durationSeconds = 0
 }
 
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
-func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song, vc *discordgo.VoiceConnection) (finishReason string, err error) {
+func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song, vc *discordgo.VoiceConnection) {
 	defer ap.Cleanup()
-
-	if ap.stop {
-		return ap.stopReason, nil
-	}
-	ap.durationSeconds = song.DurationSeconds
 
 	vc.Speaking(true)
 	defer vc.Speaking(false)
-
-	var potentialError error = nil
 
 streamingLoop:
 	// NOTE: try to run the stream 3 times in case
@@ -133,14 +101,13 @@ streamingLoop:
 	// with an error in less than a second
 	for i := 0; i < 3; i++ {
 		if ap.stop {
-			return ap.stopReason, nil
+			return
 		}
 		streamSession, err := ap.youtube.Stream().GetSession(
 			song.Url,
 			vc,
 		)
 		if err != nil {
-			potentialError = err
 			continue streamingLoop
 		}
 		ap.streamSession = streamSession
@@ -153,12 +120,12 @@ streamingLoop:
 		for {
 			select {
 			case <-done:
-				return FinishedTerminated, nil
+				return
 			case err = <-streamDone:
 				if err.Error() == "Voice connection closed" {
 					// NOTE: if voice connection has been closed,
 					// just stop without calling any defer functions
-					return FinishedVoiceClosed, nil
+					return
 				}
 				// NOTE: the stream finished, if it lasted
 				// less than a second, retry it
@@ -170,22 +137,18 @@ streamingLoop:
 					continue streamingLoop
 				}
 				if err != nil && err != io.EOF {
-					return FinishedError, err
+					return
 				}
 				// NOTE: the stream finished successfully
-				return FinishedOK, nil
+				return
 			default:
 				if vc.Ready == false {
-					return FinishedVoiceClosed, nil
+					return
 				}
 				if ap.stop {
-					return ap.stopReason, nil
+					return
 				}
 			}
 		}
 	}
-	if potentialError == nil {
-		return FinishedError, potentialError
-	}
-	return FinishedOK, potentialError
 }
