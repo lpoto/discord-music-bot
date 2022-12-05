@@ -43,3 +43,11 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/discord_music_bot:${{ steps.tag.outputs.TAG_NAME }}
+<<<<<<< HEAD
+=======
+  fallback:
+    runs-on: ubtuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - run: echo "First workflow was a failure"
+>>>>>>> 209fb9a (Split publish docker image to 2 actions)
