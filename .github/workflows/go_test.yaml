@@ -4,6 +4,10 @@ on:
   # if called from other workflows
   workflow_call:
   push:
+    # run tests only when src/ code changes
+    paths:
+      - 'src/**'
+
 
 jobs:
   run_all_go_tests:
