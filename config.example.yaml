@@ -6,7 +6,7 @@ MusicBot:
     LogLevel: DEBUG                                                       # Log level for the postgres datastore
     InactiveSongTTL: 2h                                                   # Duration after which the inactive song is deleted (song that has already been listened to and may be accessed by clicking the "previous" button)
     Postgres:                                                             # Postgresql database configuration
-      Database: postgres
+      Database: discord_bot
       User: postgres
       Password: postgres
       Host: localhost
