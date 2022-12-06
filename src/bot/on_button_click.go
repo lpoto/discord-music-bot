@@ -239,37 +239,6 @@ func (bot *ButtonClickHandler) previousButtonClick(t *transaction.Transaction, c
 
 			return
 		}
-		// NOTE: when audioplayer finishes, add previous song as the headSong
-		// and update the queue.
-		// If loop is enabled, the previous song is last song in the queue,
-		// else it is the last removed song
-		if bot.datastore.Queue().QueueHasOption(
-			bot.session.State.User.ID,
-			t.GuildID(),
-			model.Loop,
-		) {
-			bot.datastore.Song().PushLastSongToFront(
-				bot.session.State.User.ID,
-				t.GuildID(),
-			)
-		} else {
-			song, err := bot.datastore.Song().PopLatestInactiveSong(
-				bot.session.State.User.ID,
-				t.GuildID(),
-			)
-			if err != nil {
-				bot.log.Errorf("log.Error on previous song button click: %v", err)
-				t.UpdateQueue(500 * time.Millisecond)
-				return
-			}
-			if err := bot.datastore.Song().PersistSongToFront(
-				bot.session.State.User.ID,
-				t.GuildID(),
-				song,
-			); err != nil {
-				bot.log.Errorf("log.Error on previous song button click: %v", err)
-			}
-		}
 
 		if ap == nil {
 			bot.play(t, channelID)

@@ -100,14 +100,14 @@ func (bot *AudioplayerEventHandler) handleSubscriptions(t *transaction.Transacti
 		ap.Subscriptions().Emit("finished")
 	})
 	ap.Subscriptions().Subscribe("skipToPrevious", func() {
-		// TODO
 		ap.Subscriptions().Emit("stop")
-		ap.Subscriptions().Emit("finished")
+		bot.handleReverseHeadSongRemoval(t)
+		bot.startPlayingSong(t, ap)
 		t.Refresh()
 		t.UpdateQueue(100 * time.Millisecond)
 	})
 	ap.Subscriptions().Subscribe("error", func() {
-		bot.removeHeadSong(t.GuildID())
+		bot.handleAudioplayerError(t.GuildID())
 		bot.startPlayingSong(t, ap)
 		t.Refresh()
 		t.UpdateQueue(100 * time.Millisecond)
@@ -175,49 +175,106 @@ func (bot *AudioplayerEventHandler) startPlayingSong(t *transaction.Transaction,
 	return
 }
 
+func (bot *AudioplayerEventHandler) handleAudioplayerError(guildID string) {
+	bot.log.WithField("GuildID", guildID).Trace(
+		"Removing queue's head song",
+	)
+	bot.removeHeadSong(guildID)
+}
+
 func (bot *AudioplayerEventHandler) handleHeadSongRemoval(t *transaction.Transaction) {
 	if bot.datastore.Queue().QueueHasOption(
 		bot.session.State.User.ID,
 		t.GuildID(),
 		model.Loop,
 	) {
-		bot.log.WithField("GuildID", t.GuildID()).Info(
+		bot.log.WithField("GuildID", t.GuildID()).Trace(
 			"Bot has loop enabled, pushing head song to back",
 		)
 		if err := bot.datastore.Song().PushHeadSongToBack(
 			bot.session.State.User.ID,
 			t.GuildID(),
 		); err != nil {
-			bot.log.Errorf(
-				"Error when pushing first song to back during play: %v",
+			bot.log.WithField("GuildID", t.GuildID()).Errorf(
+				"Error when pushing head song to back during play: %v",
 				err,
 			)
 		}
+		return
+	}
+	bot.log.WithField("GuildID", t.GuildID()).Trace(
+		"Bot does not have loop enabled, removing head song",
+	)
+	headsong, err := bot.datastore.Song().GetHeadSongForQueue(
+		bot.session.State.User.ID,
+		t.GuildID(),
+	)
+	if err != nil {
+		bot.log.WithField("GuildID", t.GuildID()).Errorf(
+			"Error when fetching head song during play: %v",
+			err,
+		)
 	} else {
-		bot.log.WithField("GuildID", t.GuildID()).Info(
-			"Bot does not have loop enabled, removing head song",
-		)
-		headsong, err := bot.datastore.Song().GetHeadSongForQueue(
-			bot.session.State.User.ID,
-			t.GuildID(),
-		)
-		if err != nil {
-			bot.log.Errorf(
-				"Error when fetching song during play: %v", err,
-			)
-			return
-		}
 		// NOTE: persist queue's headSong to inactive song table
-		if err := bot.datastore.Song().PersistInactiveSongs(
+		if err = bot.datastore.Song().PersistInactiveSongs(
 			bot.session.State.User.ID,
 			t.GuildID(),
 			headsong,
 		); err != nil {
-			bot.log.Info(
-				"Error when removing song during play: %v", err,
+			bot.log.WithField("GuildID", t.GuildID()).Errorf(
+				"Error when persisting inactive song during play: %v",
+				err,
 			)
+
 		}
 		bot.removeHeadSong(t.GuildID())
+	}
+}
+
+func (bot *AudioplayerEventHandler) handleReverseHeadSongRemoval(t *transaction.Transaction) {
+	if bot.datastore.Queue().QueueHasOption(
+		bot.session.State.User.ID,
+		t.GuildID(),
+		model.Loop,
+	) {
+		bot.log.WithField("GuildID", t.GuildID()).Trace(
+			"Bot has loop enabled, pushing last song to front",
+		)
+		if err := bot.datastore.Song().PushLastSongToFront(
+			bot.session.State.User.ID,
+			t.GuildID(),
+		); err != nil {
+			bot.log.WithField("GuildID", t.GuildID()).Errorf(
+				"Error when pushing last song to fron during play: %v",
+				err,
+			)
+		}
+		return
+	}
+
+	bot.log.WithField("GuildID", t.GuildID()).Trace(
+		"Bot does not have loop enabled, popping latest inactive song",
+	)
+	song, err := bot.datastore.Song().PopLatestInactiveSong(
+		bot.session.State.User.ID,
+		t.GuildID(),
+	)
+	if err != nil {
+		bot.log.WithField("GuildID", t.GuildID()).Errorf(
+			"Error when popping latest inactive song during play: %v",
+			err,
+		)
+		return
+	}
+	if err := bot.datastore.Song().PersistSongToFront(
+		bot.session.State.User.ID,
+		t.GuildID(),
+		song,
+	); err != nil {
+		bot.log.WithField("GuildID", t.GuildID()).Errorf(
+			"Error when persisting song to fron during play: %v",
+			err,
+		)
 	}
 }
 
