@@ -18,7 +18,7 @@ jobs:
   push_to_registry:
     name: Push Docker image with latest tag to Docker Hub
     # make sure the tests were successful
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
@@ -43,11 +43,3 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/discord_music_bot:${{ steps.tag.outputs.TAG_NAME }}
-<<<<<<< HEAD
-=======
-  fallback:
-    runs-on: ubtuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
-    steps:
-      - run: echo "First workflow was a failure"
->>>>>>> 209fb9a (Split publish docker image to 2 actions)
