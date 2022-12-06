@@ -21,13 +21,16 @@ type ButtonClickHandler struct {
 // called from the INTERACTIONCREATE event when the interaction type
 // is button click and the message author is bot
 func (bot *DiscordEventHandler) onButtonClick(t *transaction.Transaction) {
+	util := &Util{bot.Bot}
+	if !util.checkVoice(t) {
+		// NOTE: all message components require the user to
+		// be in a voice channel and the bot to either not be
+		// in any channel or be in the same channel as the user.
+		return
+	}
 	label := bot.builder.Queue().GetButtonLabelFromComponentData(
 		t.Interaction().MessageComponentData(),
 	)
-	bot.log.WithField("GuildID", t.Interaction().GuildID).Tracef(
-		"Button clicked (%s)", label,
-	)
-
 	button := &ButtonClickHandler{bot.Bot}
 
 	channelID := ""
@@ -182,9 +185,9 @@ func (bot *ButtonClickHandler) skipButtonClick(t *transaction.Transaction, chann
 		} else if ap.IsPaused() {
 			return
 		}
-		time.Sleep(700 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		if ap != nil {
-			ap.Subscriptions().Emit("stop")
+			ap.Subscriptions().Emit("skip")
 		}
 	})
 }
@@ -199,7 +202,7 @@ func (bot *ButtonClickHandler) replayButtonClick(t *transaction.Transaction, cha
 		} else if ap.IsPaused() {
 			return
 		}
-		time.Sleep(700 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		if ap != nil {
 			ap.Subscriptions().Emit("replay")
 		}
@@ -272,7 +275,7 @@ func (bot *ButtonClickHandler) previousButtonClick(t *transaction.Transaction, c
 			bot.play(t, channelID)
 			return
 		}
-		time.Sleep(700 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		ap.Subscriptions().Emit("skipToPrevious")
 	})
 }

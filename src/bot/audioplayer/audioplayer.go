@@ -5,6 +5,7 @@ import (
 	"discord-music-bot/model"
 	"discord-music-bot/youtube"
 	"discord-music-bot/youtube/stream"
+	"errors"
 	"io"
 	"time"
 
@@ -29,30 +30,36 @@ func NewAudioPlayer(yt *youtube.Youtube) *AudioPlayer {
 		subscriptions:   NewSubscriptions(),
 		durationSeconds: 0,
 	}
-	ap.subscriptions.Subscribe("pause", func() {
-		if ap.streamSession == nil {
-			return
-		}
-		ap.streamSession.SetPaused(true)
-	})
-	ap.subscriptions.Subscribe("unpause", func() {
-		if ap.streamSession == nil {
-			return
-		}
-		ap.streamSession.SetPaused(true)
-	})
-	ap.subscriptions.Subscribe("kill", func() {
-		ap.stop = true
-		if ap.streamSession == nil {
-			return
-		}
-		ap.streamSession.Stop()
-	})
 	return ap
 }
 
 func (ap *AudioPlayer) Subscriptions() *Subscriptions {
 	return ap.subscriptions
+}
+
+// Stop stops the audioplayer's stream session
+func (ap *AudioPlayer) Stop() {
+	ap.stop = true
+	if ap.streamSession == nil {
+		return
+	}
+	ap.streamSession.Stop()
+}
+
+// Pause pauses the audioplayer's stream session
+func (ap *AudioPlayer) Pause() {
+	if ap.streamSession == nil {
+		return
+	}
+	ap.streamSession.SetPaused(true)
+}
+
+// Unpause unpauses the audioplayer's stream session
+func (ap *AudioPlayer) Unpause() {
+	if ap.streamSession == nil {
+		return
+	}
+	ap.streamSession.SetPaused(false)
 }
 
 // IsPaused returns true if the audioplayer is currenthly
@@ -79,35 +86,38 @@ func (ap *AudioPlayer) PlaybackPosition() time.Duration {
 
 // Cleanup sets the audioplayer's data back to default.
 func (ap *AudioPlayer) Cleanup() {
+	ap.stop = false
+	ap.durationSeconds = 0
 	if ap.streamSession != nil {
 		ap.streamSession.Cleanup()
 		ap.streamSession = nil
 	}
-	ap.stop = false
-	ap.durationSeconds = 0
 }
 
 // Play starts playing the provided song in the bot's
 // current voice channel. Returns error if the bot is not connected.
-func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song, vc *discordgo.VoiceConnection) {
+func (ap *AudioPlayer) Play(ctx context.Context, song *model.Song, vc *discordgo.VoiceConnection) (int, error) {
 	defer ap.Cleanup()
 
 	vc.Speaking(true)
 	defer vc.Speaking(false)
 
+	var potError error = nil
 streamingLoop:
 	// NOTE: try to run the stream 3 times in case
 	// something went wrong with encoding and the stream finished
 	// with an error in less than a second
 	for i := 0; i < 3; i++ {
 		if ap.stop {
-			return
+			ap.stop = false
+			return 2, nil
 		}
 		streamSession, err := ap.youtube.Stream().GetSession(
 			song.Url,
 			vc,
 		)
 		if err != nil {
+			potError = err
 			continue streamingLoop
 		}
 		ap.streamSession = streamSession
@@ -120,12 +130,12 @@ streamingLoop:
 		for {
 			select {
 			case <-done:
-				return
+				return 3, nil
 			case err = <-streamDone:
 				if err.Error() == "Voice connection closed" {
 					// NOTE: if voice connection has been closed,
 					// just stop without calling any defer functions
-					return
+					return 1, errors.New("Voice connection closed")
 				}
 				// NOTE: the stream finished, if it lasted
 				// less than a second, retry it
@@ -134,21 +144,24 @@ streamingLoop:
 						ap.streamSession.Cleanup()
 						ap.streamSession = nil
 					}
+					potError = errors.New("Ended unexpectedly")
 					continue streamingLoop
 				}
 				if err != nil && err != io.EOF {
-					return
+					return 1, err
 				}
 				// NOTE: the stream finished successfully
-				return
+				return 0, nil
 			default:
 				if vc.Ready == false {
-					return
+					return 1, errors.New("Voice connection closed")
 				}
 				if ap.stop {
-					return
+					ap.stop = false
+					return 2, nil
 				}
 			}
 		}
 	}
+	return 1, potError
 }

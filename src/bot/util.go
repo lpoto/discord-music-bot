@@ -150,6 +150,9 @@ func (bot *Util) joinVoice(t *transaction.Transaction, channelID string) error {
 
 	vc, ok := bot.session.VoiceConnections[t.GuildID()]
 	if ok && vc.ChannelID == channelID {
+		bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+			"Client already in the requested voice",
+		)
 		return nil
 	}
 	if _, err := bot.session.ChannelVoiceJoin(
@@ -161,5 +164,30 @@ func (bot *Util) joinVoice(t *transaction.Transaction, channelID string) error {
 		bot.log.Debugf("Could not join voice: %v", err)
 		return err
 	}
+	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+		"Successfully joined voice",
+	)
 	return nil
+}
+
+// ensureClientTextChannelPermissions checks whether the client
+// has all the required permission is the text channel identified
+// by the provided channelID.
+func (bot *Util) ensureClientTextChannelPermissions(channelID string) bool {
+	// NOTE: check permissions for the client in the channel
+	// ... it should always have the send messages permission
+	per, err := bot.session.State.UserChannelPermissions(
+		bot.session.State.User.ID,
+		channelID,
+	)
+	if err != nil {
+		bot.log.Trace("Client missing all permissions in text channel")
+		return false
+	}
+	if per&discordgo.PermissionSendMessages !=
+		discordgo.PermissionSendMessages {
+		bot.log.Trace("Client missing send messages permission")
+		return false
+	}
+	return true
 }

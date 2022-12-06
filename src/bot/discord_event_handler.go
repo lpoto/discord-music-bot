@@ -7,7 +7,10 @@ type DiscordEventHandler struct {
 }
 
 // setHandlers adds handlers for discord events to the
-// provided session
+// provided session.
+// It Adds handler for ready, message (bulk) delete,
+// and interaction create events, but it determines
+// the type of interaction and calls the appropriate function.
 func (bot *DiscordEventHandler) setHandlers() {
 	bot.session.AddHandler(
 		func(s *discordgo.Session, r *discordgo.Ready) {
@@ -53,9 +56,46 @@ func (bot *DiscordEventHandler) setHandlers() {
 					i.Interaction.Type == discordgo.InteractionModalSubmit ||
 					i.Interaction.Type == discordgo.InteractionMessageComponent) {
 
-				t := bot.transactions.New("Interaction", i.GuildID, i.Interaction)
 				bot.session = s
-				bot.onInteractionCreate(t)
+				util := &Util{bot.Bot}
+
+				if len(i.ChannelID) > 0 {
+					if !util.ensureClientTextChannelPermissions(i.ChannelID) {
+						return
+					}
+				}
+
+				switch i.Interaction.Type {
+				case discordgo.InteractionApplicationCommand:
+					t := bot.transactions.New(
+						"Interaction/ApplicationCommand",
+						i.GuildID,
+						i.Interaction,
+					)
+					bot.onApplicationCommand(t)
+					return
+				case discordgo.InteractionMessageComponent:
+					switch i.Interaction.MessageComponentData().ComponentType {
+					case discordgo.ButtonComponent:
+						t := bot.transactions.New(
+							"Interaction/ButtonClick",
+							i.GuildID,
+							i.Interaction,
+						)
+						bot.onButtonClick(t)
+						return
+					}
+					return
+				case discordgo.InteractionModalSubmit:
+					t := bot.transactions.New(
+						"Interaction/ModalSubmit",
+						i.GuildID,
+						i.Interaction,
+					)
+					bot.onModalSubmit(t)
+					return
+
+				}
 			}
 		},
 	)

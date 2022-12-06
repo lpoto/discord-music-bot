@@ -4,7 +4,6 @@ import (
 	"discord-music-bot/bot/audioplayer"
 	"discord-music-bot/bot/transaction"
 	"discord-music-bot/model"
-	"errors"
 	"time"
 )
 
@@ -15,6 +14,11 @@ type AudioplayerEventHandler struct {
 // play searches for a queue that belongs to the provided guildID
 // and starts playing it's headSong if no song is currently playing.
 func (bot *Bot) play(t *transaction.Transaction, channelID string) {
+	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+		"Play requested ...",
+	)
+
+	// NOTE: make sure there is no audioplayer already active
 	if _, ok := bot.audioplayers.Get(t.GuildID()); ok {
 		// NOTE: audio has already been started from
 		// another source, do not continue
@@ -23,13 +27,24 @@ func (bot *Bot) play(t *transaction.Transaction, channelID string) {
 			// NOTE: should still update even when
 			// returning as there must be a reason
 			// for the play request
+			bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+				"Audioplayer already exists",
+			)
 			t.UpdateQueue(100 * time.Millisecond)
 			return
 		}
 	}
+
+	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+		"No existing audioplayer, creating one ...",
+	)
+
 	events := &AudioplayerEventHandler{bot}
 	util := &Util{bot}
 
+	// NOTE: try to join the voice channel, if client
+	// is already in the one identified by the channelID,
+	// it will not connect again
 	if err := util.joinVoice(t, channelID); err != nil {
 		t.UpdateQueue(100 * time.Millisecond)
 		return
@@ -37,62 +52,130 @@ func (bot *Bot) play(t *transaction.Transaction, channelID string) {
 
 	ap := audioplayer.NewAudioPlayer(bot.youtube)
 
-	ap.Subscriptions().Subscribe("stop", func() {
-		ap.Subscriptions().Emit("kill")
-		events.audioplayerOnStop(t)
-	})
-	ap.Subscriptions().Subscribe("replay", func() {
-		ap.Subscriptions().Emit("stop")
-	})
-	ap.Subscriptions().Subscribe("error", func() {
-		events.audioplayerOnError(t.GuildID())
-	})
-	ap.Subscriptions().Subscribe("skip", func() {
-		ap.Subscriptions().Emit("stop")
-	})
-	ap.Subscriptions().Subscribe("terminate", func() {
-		ap.Subscriptions().Emit("kill")
-		bot.audioplayers.Remove(t.GuildID())
-	})
+	// NOTE: handle all external logic for audioplayer
+	// with subscriptions. That way we can easily trigger
+	// custom audioplayer events when clicking on buttons etc.
+	events.handleSubscriptions(t, ap)
 
 	bot.audioplayers.Add(t.GuildID(), ap)
 
+	// NOTE: try to start playing, and then
+	// update the queue, as it should be updated if
+	// audioplayer started succesfully or if it failed.
 	events.startPlayingSong(t, ap)
+
 	t.UpdateQueue(100 * time.Millisecond)
 
 }
 
-func (bot *AudioplayerEventHandler) startPlayingSong(t *transaction.Transaction, ap *audioplayer.AudioPlayer) error {
+func (bot *AudioplayerEventHandler) handleSubscriptions(t *transaction.Transaction, ap *audioplayer.AudioPlayer) {
+	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+		"Handling audioplayer subscriptions",
+	)
+	ap.Subscriptions().Subscribe("stop", func() {
+		ap.Stop()
+	})
+	ap.Subscriptions().Subscribe("pause", func() {
+		ap.Unpause()
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("unpause", func() {
+		ap.Pause()
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("finished", func() {
+		bot.handleHeadSongRemoval(t)
+		bot.startPlayingSong(t, ap)
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("replay", func() {
+		ap.Subscriptions().Emit("stop")
+		bot.startPlayingSong(t, ap)
+	})
+	ap.Subscriptions().Subscribe("skip", func() {
+		ap.Subscriptions().Emit("stop")
+		ap.Subscriptions().Emit("finished")
+	})
+	ap.Subscriptions().Subscribe("skipToPrevious", func() {
+		// TODO
+		ap.Subscriptions().Emit("stop")
+		ap.Subscriptions().Emit("finished")
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("error", func() {
+		bot.removeHeadSong(t.GuildID())
+		bot.startPlayingSong(t, ap)
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("delete", func() {
+		bot.audioplayers.Remove(t.GuildID())
+	})
+	ap.Subscriptions().Subscribe("terminate", func() {
+		ap.Subscriptions().Emit("stop")
+		ap.Subscriptions().Emit("delete")
+	})
+}
+
+func (bot *AudioplayerEventHandler) startPlayingSong(t *transaction.Transaction, ap *audioplayer.AudioPlayer) {
+	bot.log.WithField("GuildID", t.GuildID()).Trace("Try to start playing")
+
 	song, err := bot.datastore.Song().GetHeadSongForQueue(
 		bot.session.State.User.ID,
 		t.GuildID(),
 	)
 	if err != nil {
-		return err
+		ap.Subscriptions().Emit("delete")
+		bot.log.WithField("GuildID", t.GuildID()).Trace(
+			"No head song found, cannot start playing",
+		)
+		return
 	}
 	voice, ok := bot.session.VoiceConnections[t.GuildID()]
 	if ok == false || !voice.Ready {
 		time.Sleep(300 * time.Second)
 		voice, ok = bot.session.VoiceConnections[t.GuildID()]
 		if ok == false || !voice.Ready {
-			return errors.New("Failed to connect to voide")
+			ap.Subscriptions().Emit("delete")
+			bot.log.WithField("GuildID", t.GuildID()).Debug(
+				"Failed to connect to voice",
+			)
+			return
 		}
 	}
-	go ap.Play(bot.ctx, song, voice)
-	return nil
+	go func() {
+		bot.log.WithField("GuildID", t.GuildID()).Tracef(
+			"Playing song: %v", song.Name,
+		)
+		code, err := ap.Play(bot.ctx, song, voice)
+		switch code {
+		case 0:
+			bot.log.WithField("GuildID", t.GuildID()).Tracef(
+				"Audioplayer finished on itself",
+			)
+			ap.Subscriptions().Emit("finished")
+			return
+		case 1:
+			bot.log.WithField("GuildID", t.GuildID()).Tracef(
+				"Audioplayer finished with error: %v",
+				err,
+			)
+			ap.Subscriptions().Emit("error")
+			return
+		default:
+			bot.log.WithField("GuildID", t.Interaction().GuildID).Tracef(
+				"Audioplayer exited with code: %d", code,
+			)
+		}
+	}()
+	return
 }
 
-// audioplayerOnStop is a function called when the audioplayer emits
-// stop event
-func (bot *AudioplayerEventHandler) audioplayerOnStop(t *transaction.Transaction) {
-	defer func() {
-		t.Refresh()
-		t.UpdateQueue(100 * time.Millisecond)
-	}()
-
-	// NOTE: if loop is enabled in the queue
-	// push it's headSong to the back of the queue
-	// else just
+func (bot *AudioplayerEventHandler) handleHeadSongRemoval(t *transaction.Transaction) {
 	if bot.datastore.Queue().QueueHasOption(
 		bot.session.State.User.ID,
 		t.GuildID(),
@@ -134,28 +217,12 @@ func (bot *AudioplayerEventHandler) audioplayerOnStop(t *transaction.Transaction
 				"Error when removing song during play: %v", err,
 			)
 		}
-		if err := bot.datastore.Song().RemoveHeadSong(
-			// NOTE: the finished song should be removed
-			// from the queue
-			bot.session.State.User.ID,
-			t.GuildID(),
-		); err != nil {
-			bot.log.Errorf(
-				"Error when removing song during play: %v", err,
-			)
-		}
+		bot.removeHeadSong(t.GuildID())
 	}
 }
 
-// audioplayerOnError is the a function called
-// when the audioplayer finishes with error.
-func (bot *AudioplayerEventHandler) audioplayerOnError(guildID string) {
-	// NOTE: if error occured when playing the head song,
-	// it should be removed
-
+func (bot *AudioplayerEventHandler) removeHeadSong(guildID string) {
 	if err := bot.datastore.Song().RemoveHeadSong(
-		// NOTE: the finished song should be removed
-		// from the queue
 		bot.session.State.User.ID,
 		guildID,
 	); err != nil {
