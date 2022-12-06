@@ -24,17 +24,26 @@ func (bot *DiscordEventHandler) onVoiceStateUpdate(t *transaction.Transaction, i
 		if len(i.BeforeUpdate.ChannelID) > 0 {
 			if len(i.ChannelID) == 0 {
 
-				// NOTE: remove paused option, so that on reconnect the
-				// bot is ready to play
-				bot.datastore.Queue().RemoveQueueOptions(
-					bot.session.State.User.ID,
-					i.GuildID,
-					model.Paused,
-				)
 				if ap, ok := bot.audioplayers.Get(i.GuildID); ok && ap != nil {
-					ap.Subscriptions().Emit("VoiceClosed")
+					ap.Subscriptions().Emit("terminate")
+				}
+
+				time.Sleep(1 * time.Second)
+				_, e := bot.datastore.Queue().GetQueue(
+					bot.session.State.User.ID,
+					t.GuildID(),
+				)
+				if e == nil {
+					// NOTE: remove paused option, so that on reconnect the
+					// bot is ready to play
+					bot.datastore.Queue().RemoveQueueOptions(
+						bot.session.State.User.ID,
+						i.GuildID,
+						model.Paused,
+					)
+					t.UpdateQueue(0)
 				} else {
-					t.UpdateQueue(500 * time.Millisecond)
+					t.Defer()
 				}
 			} else {
 				// WARNING: this is here only due to the bug in

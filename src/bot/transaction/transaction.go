@@ -92,6 +92,9 @@ func (t *Transaction) GuildID() string {
 // A transaction is automatically marked as completed when it
 // is defered or when it updates a queue.
 func (t *Transaction) Refresh() {
+	if !t.done {
+		return
+	}
 	t.allTransactions.log.WithFields(log.Fields{
 		"ID":      t.id,
 		"Type":    t.t,
@@ -126,6 +129,9 @@ func (t *Transaction) UpdateQueue(timeout time.Duration) error {
 	if t.done {
 		return nil
 	}
+
+	time.Sleep(timeout)
+
 	if !t.quiet {
 		t.allTransactions.log.WithFields(log.Fields{
 			"ID":      t.id,
@@ -142,7 +148,7 @@ func (t *Transaction) UpdateQueue(timeout time.Duration) error {
 	}()
 
 	clientID := t.allTransactions.session().State.User.ID
-	guildID := t.guildID
+	guildID := t.GuildID()
 
 	// NOTE: first fetch the queue as the queue message
 	// is built from the queue object

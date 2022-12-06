@@ -41,7 +41,7 @@ func NewAudioPlayer(yt *youtube.Youtube) *AudioPlayer {
 		}
 		ap.streamSession.SetPaused(true)
 	})
-	ap.subscriptions.Subscribe("stop", func() {
+	ap.subscriptions.Subscribe("kill", func() {
 		ap.stop = true
 		if ap.streamSession == nil {
 			return

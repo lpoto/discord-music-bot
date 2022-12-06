@@ -40,7 +40,7 @@ func (bot *DiscordEventHandler) onButtonClick(t *transaction.Transaction) {
 
 	switch label {
 	case bot.builder.Queue().ButtonsConfig().AddSongs:
-		button.addSongsButtonClick(t)
+		button.addSongsButtonClick(t, channelID)
 		return
 	case bot.builder.Queue().ButtonsConfig().Backward:
 		button.backwardButtonClick(t)
@@ -285,11 +285,15 @@ func (bot *ButtonClickHandler) joinButtonClick(t *transaction.Transaction, chann
 
 // addSongs responds to the provided interaction with the
 // add songs modal.
-func (bot *ButtonClickHandler) addSongsButtonClick(t *transaction.Transaction) error {
+func (bot *ButtonClickHandler) addSongsButtonClick(t *transaction.Transaction, channelID string) error {
 	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
 		"Send add songs modal",
 	)
-	t.Defer()
+	defer t.Defer()
+
+	util := &Util{bot.Bot}
+
+	util.joinVoice(t, channelID)
 
 	textInput := discordgo.TextInput{
 		CustomID:    uuid.NewString(),

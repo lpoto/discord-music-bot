@@ -4,6 +4,7 @@ import (
 	"discord-music-bot/bot/transaction"
 
 	"github.com/bwmarrin/discordgo"
+	log "github.com/sirupsen/logrus"
 )
 
 type Util struct {
@@ -62,8 +63,8 @@ func (bot *Util) checkVoice(t *transaction.Transaction) bool {
 
 // deleteQueue checks if any of the provided messageIDs belongs
 // to a queue message. If so, it deletes it.
-func (bot *Util) deleteQueue(s *discordgo.Session, guildID string, messageIDs []string) {
-	clientID := s.State.User.ID
+func (bot *Util) deleteQueue(guildID string, messageIDs []string) {
+	clientID := bot.session.State.User.ID
 
 	queue, err := bot.datastore.Queue().GetQueue(
 		clientID,
@@ -85,9 +86,9 @@ func (bot *Util) deleteQueue(s *discordgo.Session, guildID string, messageIDs []
 	}
 	bot.log.Trace("The queue message was deleted, removing the queue")
 	if ap, ok := bot.audioplayers.Get(guildID); ok {
-		ap.Subscriptions().Emit("stop")
+		ap.Subscriptions().Emit("terminate")
 	}
-	if vc, ok := s.VoiceConnections[guildID]; ok {
+	if vc, ok := bot.session.VoiceConnections[guildID]; ok {
 		vc.Disconnect()
 	}
 
@@ -136,4 +137,29 @@ func (bot *Util) cleanDiscordMusicQueues() {
 			}
 		}
 	}
+}
+
+// joinVoice connects to the voice channel identified by the provided guilID and
+// channelID, returns error on failure. If the client is already connected to the
+// voice channel, it does not connect again.
+func (bot *Util) joinVoice(t *transaction.Transaction, channelID string) error {
+	bot.log.WithFields(log.Fields{
+		"GuildID":   t.GuildID(),
+		"ChannelID": channelID,
+	}).Trace("Joining voice")
+
+	vc, ok := bot.session.VoiceConnections[t.GuildID()]
+	if ok && vc.ChannelID == channelID {
+		return nil
+	}
+	if _, err := bot.session.ChannelVoiceJoin(
+		t.GuildID(),
+		channelID,
+		false,
+		false,
+	); err != nil {
+		bot.log.Debugf("Could not join voice: %v", err)
+		return err
+	}
+	return nil
 }

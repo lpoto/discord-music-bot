@@ -11,7 +11,7 @@ func (bot *DiscordEventHandler) onMessageDelete(m *discordgo.MessageDelete) {
 	bot.log.WithField("GuildID", m.GuildID).Trace("Message deleted")
 
 	util := &Util{bot.Bot}
-	util.deleteQueue(bot.session, m.GuildID, []string{m.ID})
+	util.deleteQueue(m.GuildID, []string{m.ID})
 }
 
 // onBulkMessageDelete is a handler function called when discord emits
@@ -19,5 +19,5 @@ func (bot *DiscordEventHandler) onMessageDelete(m *discordgo.MessageDelete) {
 // was a music bot's queue message and if so, it deletes the queue.
 func (bot *DiscordEventHandler) onBulkMessageDelete(m *discordgo.MessageDeleteBulk) {
 	util := &Util{bot.Bot}
-	util.deleteQueue(bot.session, m.GuildID, m.Messages)
+	util.deleteQueue(m.GuildID, m.Messages)
 }

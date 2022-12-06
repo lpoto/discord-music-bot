@@ -6,8 +6,6 @@ import (
 	"discord-music-bot/model"
 	"errors"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type AudioplayerEventHandler struct {
@@ -30,8 +28,9 @@ func (bot *Bot) play(t *transaction.Transaction, channelID string) {
 		}
 	}
 	events := &AudioplayerEventHandler{bot}
+	util := &Util{bot}
 
-	if err := events.joinVoice(t, channelID); err != nil {
+	if err := util.joinVoice(t, channelID); err != nil {
 		t.UpdateQueue(100 * time.Millisecond)
 		return
 	}
@@ -39,6 +38,7 @@ func (bot *Bot) play(t *transaction.Transaction, channelID string) {
 	ap := audioplayer.NewAudioPlayer(bot.youtube)
 
 	ap.Subscriptions().Subscribe("stop", func() {
+		ap.Subscriptions().Emit("kill")
 		events.audioplayerOnStop(t)
 	})
 	ap.Subscriptions().Subscribe("replay", func() {
@@ -49,6 +49,10 @@ func (bot *Bot) play(t *transaction.Transaction, channelID string) {
 	})
 	ap.Subscriptions().Subscribe("skip", func() {
 		ap.Subscriptions().Emit("stop")
+	})
+	ap.Subscriptions().Subscribe("terminate", func() {
+		ap.Subscriptions().Emit("kill")
+		bot.audioplayers.Remove(t.GuildID())
 	})
 
 	bot.audioplayers.Add(t.GuildID(), ap)
@@ -159,29 +163,4 @@ func (bot *AudioplayerEventHandler) audioplayerOnError(guildID string) {
 			"Error when removing song during play: %v", err,
 		)
 	}
-}
-
-// joinVoice connects to the voice channel identified by the provided guilID and
-// channelID, returns error on failure. If the client is already connected to the
-// voice channel, it does not connect again.
-func (bot *AudioplayerEventHandler) joinVoice(t *transaction.Transaction, channelID string) error {
-	bot.log.WithFields(log.Fields{
-		"GuildID":   t.GuildID(),
-		"ChannelID": channelID,
-	}).Trace("Joining voice")
-
-	vc, ok := bot.session.VoiceConnections[t.GuildID()]
-	if ok && vc.ChannelID == channelID {
-		return nil
-	}
-	if _, err := bot.session.ChannelVoiceJoin(
-		t.GuildID(),
-		channelID,
-		false,
-		false,
-	); err != nil {
-		bot.log.Debugf("Could not join voice: %v", err)
-		return err
-	}
-	return nil
 }

@@ -50,7 +50,7 @@ func (bot *DiscordEventHandler) onStopSlashCommand(t *transaction.Transaction) {
 		}
 	}
 	util := &Util{bot.Bot}
-	util.deleteQueue(bot.session, t.GuildID(), []string{queue.MessageID})
+	util.deleteQueue(t.GuildID(), []string{queue.MessageID})
 
 	if err := bot.session.InteractionRespond(t.Interaction(),
 		&discordgo.InteractionResponse{
