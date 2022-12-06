@@ -51,6 +51,10 @@ func (store *SongStore) Destroy() error {
 // limited by the queue's offset and limit, and the total
 // size of the queue.
 func (store *SongStore) UpdateQueueWithSongs(queue *model.Queue) (*model.Queue, error) {
+	queue.InactiveSize = store.GetInactiveSongCountForQueue(
+		queue.ClientID,
+		queue.GuildID,
+	)
 	if headSong, err := store.GetHeadSongForQueue(
 		queue.ClientID,
 		queue.GuildID,
@@ -67,10 +71,6 @@ func (store *SongStore) UpdateQueueWithSongs(queue *model.Queue) (*model.Queue, 
 	); err == nil {
 		queue.Songs = songs
 		queue.Size = store.GetSongCountForQueue(
-			queue.ClientID,
-			queue.GuildID,
-		)
-		queue.InactiveSize = store.GetInactiveSongCountForQueue(
 			queue.ClientID,
 			queue.GuildID,
 		)

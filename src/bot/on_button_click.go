@@ -241,6 +241,8 @@ func (bot *ButtonClickHandler) previousButtonClick(t *transaction.Transaction, c
 		}
 
 		if ap == nil {
+			h := &AudioplayerEventHandler{bot.Bot}
+			h.handleReverseHeadSongRemoval(t)
 			bot.play(t, channelID)
 			return
 		}
