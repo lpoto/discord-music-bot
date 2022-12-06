@@ -41,7 +41,7 @@ func (s *QueueStoreTestSuite) SetupTest() {
 
 // TearDownSuite runs after all tests have been run and destroys
 // the queue store and closes database connection.
-func (s *QueueStoreTestSuite) TeardownSuite() {
+func (s *QueueStoreTestSuite) TearDownSuite() {
 	err := s.store.Destroy()
 	s.NoError(err)
 
@@ -167,6 +167,11 @@ func (s *QueueStoreTestSuite) TestIntegrationAddRemoveQueueOptions() {
 		model.PausedOption(),
 	)
 	s.NoError(err)
+
+	v := s.store.QueueHasOption(queue.ClientID, queue.GuildID, model.Loop)
+	s.Equal(true, v)
+	v = s.store.QueueHasOption(queue.ClientID, queue.GuildID, model.Paused)
+	s.Equal(true, v)
 
 	// Make sure the added options are there
 	queue, err = s.store.GetQueue(queue.ClientID, queue.GuildID)

@@ -6,7 +6,7 @@ import (
 	"discord-music-bot/bot/blocked_command"
 	"discord-music-bot/bot/modal"
 	"discord-music-bot/bot/slash_command"
-	"discord-music-bot/bot/updater"
+	"discord-music-bot/bot/transaction"
 	"discord-music-bot/builder"
 	"discord-music-bot/datastore"
 	"discord-music-bot/service"
@@ -18,7 +18,7 @@ import (
 )
 
 type Bot struct {
-	*log.Logger
+	log             *log.Logger
 	ctx             context.Context
 	ready           bool
 	_ready          bool
@@ -27,8 +27,9 @@ type Bot struct {
 	datastore       *datastore.Datastore
 	youtube         *youtube.Youtube
 	audioplayers    *audioplayer.AudioPlayersMap
-	queueUpdater    *updater.QueueUpdater
+	transactions    *transaction.Transactions
 	blockedCommands *blocked_command.BlockedCommands
+	session         *discordgo.Session
 	config          *Configuration
 	helpContent     string
 }
@@ -52,7 +53,7 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 
 	bot := &Bot{
 		ctx:             ctx,
-		Logger:          l,
+		log:             l,
 		ready:           false,
 		_ready:          false,
 		service:         service.NewService(),
@@ -62,13 +63,14 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 		config:          config,
 		audioplayers:    audioplayer.NewAudioPlayersMap(),
 		blockedCommands: blocked_command.NewBlockedCommands(),
+		session:         nil,
 		helpContent:     help,
 	}
-	bot.queueUpdater = updater.NewQueueUpdater(
-		bot.builder,
-		bot.config.MaxAloneTime,
+	bot.transactions = transaction.NewTransactions(
+		func() *discordgo.Session { return bot.session },
+		bot.log,
 		bot.datastore,
-		bot.audioplayers,
+		bot.builder,
 		func() bool { return bot._ready },
 	)
 	l.Info("Discord music bot created")
@@ -80,15 +82,15 @@ func NewBot(ctx context.Context, config *Configuration, help string) *Bot {
 // initialized the tables and other initial data in the datastore and
 // registers all the required commands through the discord api.
 func (bot *Bot) Init() error {
-	bot.Debug("Initializing the bot ...")
+	bot.log.Debug("Initializing the bot ...")
 
 	if err := bot.datastore.Connect(); err != nil {
 		return err
 	}
-	if err := bot.datastore.Init(bot.ctx, true); err != nil {
+	if err := bot.datastore.Init(bot.ctx); err != nil {
 		return err
 	}
-	bot.Info("Bot initialized")
+	bot.log.Info("Bot initialized")
 	return nil
 }
 
@@ -98,102 +100,83 @@ func (bot *Bot) Init() error {
 func (bot *Bot) Run() {
 	done := bot.ctx.Done()
 
-	bot.Info("Creating new Discord session...")
+	bot.log.Info("Creating new Discord session...")
 	session, err := discordgo.New("Bot " + bot.config.DiscordToken)
 	if err != nil {
-		bot.Panic(err)
+		bot.log.Panic(err)
 	}
+	bot.session = session
+
 	// Set intents required by the bot
-	bot.setIntents(session)
+	intentsHandler := &DiscordIntentsHandler{bot}
+	intentsHandler.setIntents()
+
 	// Set handlers for events emitted by the discord
-	bot.setHandlers(session)
+	eventHandler := &DiscordEventHandler{bot}
+	eventHandler.setHandlers()
 
 	if err := session.Open(); err != nil {
-		bot.Panic(err)
+		bot.log.Panic(err)
 	}
 
 	// Register slash commands required by the bot
-	bot.Debug("Registering global slash commands ...")
+	bot.log.Debug("Registering global slash commands ...")
 	if err := slash_command.Register(
-		session,
+		bot.session,
 		bot.config.SlashCommands,
 	); err != nil {
-		bot.Warn(err)
+		bot.log.Warn(err)
 	}
+
+	util := &Util{bot}
 
 	defer func() {
 		bot.ready = false
 		bot._ready = false
-		bot.cleanDiscordMusicQueues(session)
-		bot.Info("Closing discord session ... ")
-		session.Close()
+		util.cleanDiscordMusicQueues()
+		bot.log.Info("Closing discord session ... ")
+		bot.session.Close()
 	}()
 
-	go bot.queueUpdater.RunInactiveQueueUpdater(bot.ctx, session)
-	// Run loop until the context is done
-	// All logic is performed by the handlers
+	// NOTE: check at intervals bot's voice connections
+	// if bot is in a channel with no active listeners
+	// for longer than the config's MaxAloneTime,
+	// disconnect it from that channel.
+	ticker := time.NewTicker(15 * time.Second)
+	noListeners := make(map[string]time.Time)
+
 	for {
 		select {
 		case <-done:
 			return
-		}
-	}
-}
+		case <-ticker.C:
+			for guildID, vc := range bot.session.VoiceConnections {
+				if util.hasListeners(guildID) {
+					delete(noListeners, guildID)
+					continue
+				}
+				if _, ok := noListeners[guildID]; !ok {
+					noListeners[guildID] = time.Now()
+				}
+				if time.Since(noListeners[guildID]) >
+					bot.config.MaxAloneTime {
 
-// setIntents sets the intents for the session, required
-// by the music bot
-func (bot *Bot) setIntents(session *discordgo.Session) {
-	//NOTE: guilds for interactions in guilds,
-	// guild messages for message delete events,
-	// voice states for voice state update events
-	session.Identify.Intents =
-		discordgo.IntentsGuilds +
-			discordgo.IntentsGuildVoiceStates +
-			discordgo.IntentGuildMessages
+					bot.log.WithFields(log.Fields{
+						"GuildID":   guildID,
+						"AloneTime": time.Since(noListeners[guildID]),
+					}).Trace(
+						"Bot alone in channel for too long, disconnecting",
+					)
 
-}
+					if ap, ok := bot.audioplayers.Get(guildID); ok {
+						ap.Subscriptions().Emit("stop")
+						time.Sleep(100 * time.Millisecond)
+					}
 
-// setHandlers adds handlers for discord events to the
-// provided session
-func (bot *Bot) setHandlers(session *discordgo.Session) {
-	session.AddHandler(bot.onReady)
-	session.AddHandler(bot.onMessageDelete)
-	session.AddHandler(bot.onBulkMessageDelete)
-	session.AddHandler(bot.onVoiceStateUpdate)
-	session.AddHandler(bot.onInteractionCreate)
-}
-
-// cleanDiscordMusicQueues removes all queue messages from datastore,
-// for which the messages not longer exist in the discord channels.
-// For those that exist, it marks them as paused
-// If start is true, inactive option is added to all the queues,
-// else the offline option is added
-func (bot *Bot) cleanDiscordMusicQueues(session *discordgo.Session) {
-	bot.Debug("Cleaning up discord music queues ...")
-
-	queues, err := bot.datastore.Queue().FindAllQueues()
-	if err != nil {
-		bot.Errorf(
-			"Error when checking if all queues exist: %v", err,
-		)
-		return
-	}
-	for _, queue := range queues {
-		if err == nil {
-			bot.queueUpdater.NeedsUpdate(queue.GuildID)
-			err = bot.queueUpdater.Update(session, queue.GuildID)
-		}
-		if err != nil {
-			err = bot.datastore.Queue().RemoveQueue(
-				queue.ClientID,
-				queue.GuildID,
-			)
-			if err != nil {
-				bot.Errorf(
-					"Error when cleaning up queues : %v", err,
-				)
+					vc.Disconnect()
+					delete(noListeners, guildID)
+				}
 			}
-
 		}
 	}
 }

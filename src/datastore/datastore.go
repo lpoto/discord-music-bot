@@ -89,7 +89,7 @@ func (datastore *Datastore) Connect() error {
 // Init creates all the tables required by the datastore
 // and runs the goroutine required for deleting the
 // outdated inactive songs.
-func (datastore *Datastore) Init(ctx context.Context, runInactiveSongsCleanup bool) error {
+func (datastore *Datastore) Init(ctx context.Context) error {
 	datastore.Debug("Initializing datastore ...")
 
 	if err := datastore.queue.Init(); err != nil {
@@ -99,9 +99,7 @@ func (datastore *Datastore) Init(ctx context.Context, runInactiveSongsCleanup bo
 		return err
 	}
 
-	if runInactiveSongsCleanup {
-		go datastore.song.RunInactiveSongsCleanup(ctx)
-	}
+	go datastore.song.RunInactiveSongsCleanup(ctx)
 
 	datastore.Info("Datastore initialized")
 	return nil

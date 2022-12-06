@@ -1,8 +1,8 @@
 package queue
 
 import (
-	"discord-music-bot/model"
 	"discord-music-bot/builder/song"
+	"discord-music-bot/model"
 	"fmt"
 	"strings"
 
@@ -30,22 +30,22 @@ type ButtonsConfig struct {
 }
 
 type QueueBuilder struct {
-	config *Configuration
-    songBuilder *song.SongBuilder
+	config      *Configuration
+	songBuilder *song.SongBuilder
 }
 
 // NewQueueBuidler constructs an object that handles
 // building queues and mapping them to embeds.
 func NewQueueBuidler(config *Configuration, songBuilder *song.SongBuilder) *QueueBuilder {
 	return &QueueBuilder{
-		config: config,
-        songBuilder: songBuilder,
+		config:      config,
+		songBuilder: songBuilder,
 	}
 }
 
 // ButtonsConfig returns the builder's buttons config.
 func (builder *QueueBuilder) ButtonsConfig() *ButtonsConfig {
-    return builder.config.Buttons
+	return builder.config.Buttons
 }
 
 // NewQueue constructs an object that represents a music queue
@@ -155,10 +155,10 @@ func (builder *QueueBuilder) GetInactiveQueueComponents(queue *model.Queue) []di
 func (builder *QueueBuilder) GetMusicQueueComponents(queue *model.Queue) []discordgo.MessageComponent {
 	loopStyle := discordgo.SecondaryButton
 	pauseStyle := discordgo.SecondaryButton
-	if builder.QueueHasOption(queue, model.Loop) {
+	if builder.queueHasOption(queue, model.Loop) {
 		loopStyle = discordgo.SuccessButton
 	}
-	if builder.QueueHasOption(queue, model.Paused) {
+	if builder.queueHasOption(queue, model.Paused) {
 		pauseStyle = discordgo.SuccessButton
 	}
 	return []discordgo.MessageComponent{
@@ -166,33 +166,19 @@ func (builder *QueueBuilder) GetMusicQueueComponents(queue *model.Queue) []disco
 			Components: []discordgo.MessageComponent{
 				builder.newButton(builder.config.Buttons.Backward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
 				builder.newButton(builder.config.Buttons.Forward, discordgo.SecondaryButton, queue.Size <= queue.Limit),
-				builder.newButton(builder.config.Buttons.Previous, discordgo.SecondaryButton, queue.InactiveSize == 0 && !(queue.Size > 1 && builder.QueueHasOption(queue, model.Loop)) || builder.QueueHasOption(queue, model.Paused)),
-				builder.newButton(builder.config.Buttons.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
+				builder.newButton(builder.config.Buttons.Previous, discordgo.SecondaryButton, queue.InactiveSize == 0 && !(queue.Size > 1 && builder.queueHasOption(queue, model.Loop)) || builder.queueHasOption(queue, model.Paused)),
+				builder.newButton(builder.config.Buttons.Skip, discordgo.SecondaryButton, queue.HeadSong == nil || builder.queueHasOption(queue, model.Paused)),
 			},
 		},
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				builder.newButton(builder.config.Buttons.AddSongs, discordgo.SecondaryButton, false),
-				builder.newButton(builder.config.Buttons.Loop, loopStyle, queue.Size == 0 && !builder.QueueHasOption(queue, model.Loop)),
+				builder.newButton(builder.config.Buttons.Loop, loopStyle, queue.Size == 0 && !builder.queueHasOption(queue, model.Loop)),
 				builder.newButton(builder.config.Buttons.Pause, pauseStyle, queue.HeadSong == nil),
-				builder.newButton(builder.config.Buttons.Replay, discordgo.SecondaryButton, queue.HeadSong == nil || builder.QueueHasOption(queue, model.Paused)),
+				builder.newButton(builder.config.Buttons.Replay, discordgo.SecondaryButton, queue.HeadSong == nil || builder.queueHasOption(queue, model.Paused)),
 			},
 		},
 	}
-}
-
-// QueueHasOption checks if the provided queue
-// has the provided option set
-func (builder *QueueBuilder) QueueHasOption(queue *model.Queue, option model.QueueOptionName) bool {
-	if queue == nil || queue.Options == nil {
-		return false
-	}
-	for _, o := range queue.Options {
-		if option == o.Name {
-			return true
-		}
-	}
-	return false
 }
 
 //GetButtonLabelFromComponentData returns the button's label from
@@ -208,4 +194,18 @@ func (builder *QueueBuilder) newButton(label string, style discordgo.ButtonStyle
 		Style:    style,
 		Disabled: disabled,
 	}
+}
+
+// queueHasOption checks if the provided queue
+// has the provided option set
+func (builder *QueueBuilder) queueHasOption(queue *model.Queue, option model.QueueOptionName) bool {
+	if queue == nil || queue.Options == nil {
+		return false
+	}
+	for _, o := range queue.Options {
+		if option == o.Name {
+			return true
+		}
+	}
+	return false
 }

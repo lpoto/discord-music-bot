@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"discord-music-bot/model"
+	"errors"
 	"fmt"
 	"time"
 
@@ -50,16 +51,17 @@ func (store *SongStore) Destroy() error {
 // limited by the queue's offset and limit, and the total
 // size of the queue.
 func (store *SongStore) UpdateQueueWithSongs(queue *model.Queue) (*model.Queue, error) {
-	if headSongs, err := store.GetSongsForQueue(
+	queue.InactiveSize = store.GetInactiveSongCountForQueue(
 		queue.ClientID,
 		queue.GuildID,
-		0, 1,
+	)
+	if headSong, err := store.GetHeadSongForQueue(
+		queue.ClientID,
+		queue.GuildID,
 	); err == nil {
-		if len(headSongs) > 0 {
-			queue.HeadSong = headSongs[0]
-		}
+		queue.HeadSong = headSong
 	} else {
-		return nil, err
+		return queue, nil
 	}
 	if songs, err := store.GetSongsForQueue(
 		queue.ClientID,
@@ -69,10 +71,6 @@ func (store *SongStore) UpdateQueueWithSongs(queue *model.Queue) (*model.Queue, 
 	); err == nil {
 		queue.Songs = songs
 		queue.Size = store.GetSongCountForQueue(
-			queue.ClientID,
-			queue.GuildID,
-		)
-		queue.InactiveSize = store.GetInactiveSongCountForQueue(
 			queue.ClientID,
 			queue.GuildID,
 		)
@@ -203,6 +201,19 @@ func (store *SongStore) PersistSongToFront(clientID string, guildID string, song
 		time.Since(t),
 	).Tracef("[S%d]Done : song persisted to front", i)
 	return nil
+}
+
+// GetHeadSongForQueue returns the songs with the smallest position
+// in the queue identified by the provided clientID and guildID.
+func (store *SongStore) GetHeadSongForQueue(clientID string, guildID string) (*model.Song, error) {
+	songs, err := store.GetSongsForQueue(clientID, guildID, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(songs) == 0 {
+		return nil, errors.New("psql: Found no head song for queue")
+	}
+	return songs[0], nil
 }
 
 // GetSongsForQueue fetches the songs that belong to the queue identified
@@ -791,22 +802,24 @@ func (store *SongStore) createSongTable() error {
         );
 
         DO $$
-        DECLARE X BOOL := (
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'schema_name'
-                    AND table_name = 'queue'
-                )
-            );
+        DECLARE
+            info_table information_schema.tables%rowtype;
         BEGIN
-        IF X THEN
+        SELECT *
+        FROM information_schema.tables
+        INTO info_table
+        WHERE table_name = 'queue';
+
+        IF FOUND THEN
+            ALTER TABLE "song" DROP CONSTRAINT
+                IF EXISTS "song_queue_fkey";
             ALTER TABLE "song"
-            ADD CONSTRAINT "queue_fk"
+            ADD CONSTRAINT  "song_queue_fkey"
             FOREIGN KEY (queue_client_id, queue_guild_id)
                 REFERENCES "queue" (client_id, guild_id)
                     ON DELETE CASCADE;
         END IF;
-        END $$;
+        END $$
         `,
 	); err != nil {
 		store.log.Tracef(
@@ -848,22 +861,24 @@ func (store *SongStore) createInactiveSongTable() error {
         );
 
         DO $$
-        DECLARE X BOOL := (
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'schema_name'
-                    AND table_name = 'queue'
-                )
-            );
+        DECLARE
+            info_table information_schema.tables%rowtype;
         BEGIN
-        IF X THEN
+        SELECT *
+        FROM information_schema.tables
+        INTO info_table
+        WHERE table_name = 'queue';
+
+        IF FOUND THEN
+            ALTER TABLE "inactive_song" DROP CONSTRAINT
+                IF EXISTS "inactive_song_queue_fkey";
             ALTER TABLE "inactive_song"
-            ADD CONSTRAINT "queue_fk"
+            ADD CONSTRAINT  "inactive_song_queue_fkey"
             FOREIGN KEY (queue_client_id, queue_guild_id)
                 REFERENCES "queue" (client_id, guild_id)
                     ON DELETE CASCADE;
         END IF;
-        END $$;
+        END $$
         `,
 	); err != nil {
 		store.log.Tracef(

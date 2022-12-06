@@ -197,11 +197,11 @@ func (store *QueueStore) GetQueue(clientID string, guildID string) (*model.Queue
 		return nil, err
 	}
 
-    opts, err := store.GetOptionsForQueue(clientID, guildID)
-    if err != nil {
-        return nil, err
-    }
-    queue.Options = opts
+	opts, err := store.GetOptionsForQueue(clientID, guildID)
+	if err != nil {
+		return nil, err
+	}
+	queue.Options = opts
 
 	store.log.WithField(
 		"Latency", time.Since(t),
@@ -339,6 +339,40 @@ func (store *QueueStore) RemoveQueueOptions(clientID string, guildID string, opt
 		time.Since(t),
 	).Tracef("[Q%d]Done : queue_options removed", i)
 	return nil
+}
+
+// QueueHasOption checks whether the queue identified by the
+// provided clientID and guildID has the option with the provided name.
+func (store *QueueStore) QueueHasOption(clientID string, guildID string, name model.QueueOptionName) bool {
+	i, t := store.idx, time.Now()
+	store.idx++
+
+	opt := &model.QueueOption{}
+	var ignore interface{}
+	store.log.WithFields(log.Fields{
+		"ClientID": clientID,
+		"GuildID":  guildID,
+	}).Tracef("[Q%d]Start: Check if queue has option", i)
+	err := store.db.QueryRow(
+		`
+        SELECT * FROM "queue_option"
+        WHERE "queue_option".queue_client_id = $1 AND
+            "queue_option".queue_guild_id = $2 AND
+            "queue_option".name = $3;
+        `,
+		clientID,
+		guildID,
+		name,
+	).Scan(&opt.Name, &ignore, &ignore)
+
+	store.log.WithField(
+		"Latency", time.Since(t),
+	).Tracef("[Q%d]Done : checked if queue has option", i)
+
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 // GetOptionsForQueue returns all queue options that belong to

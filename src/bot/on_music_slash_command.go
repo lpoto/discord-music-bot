@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"discord-music-bot/bot/transaction"
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
@@ -10,42 +11,46 @@ import (
 // command is called in the discord channel, this is not emmited through the
 // discord's websocket, but is rather called from INTERACTION_CREATE event when
 // the interaction's command data name matches the music slash command's name.
-func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	bot.WithField("GuildID", i.GuildID).Trace("Music slash command")
+func (bot *DiscordEventHandler) onMusicSlashCommand(t *transaction.Transaction) {
+	defer t.Defer()
 
 	// NOTE: only a single queue may be active in a guild at once
 	if queue, err := bot.datastore.Queue().GetQueue(
-		s.State.User.ID,
-		i.GuildID,
+		bot.session.State.User.ID,
+		t.GuildID(),
 	); err == nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf(
-					"A music queue is already active in this server: "+
-						"https://discord.com/channels/%s/%s/%s",
-					queue.GuildID,
-					queue.ChannelID,
-					queue.MessageID,
-				),
-				Flags: discordgo.MessageFlagsEphemeral,
-			},
-		})
+		bot.session.InteractionRespond(t.Interaction(),
+			&discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf(
+						"A music queue is already active in this server: "+
+							"https://discord.com/channels/%s/%s/%s",
+						queue.GuildID,
+						queue.ChannelID,
+						queue.MessageID,
+					),
+					Flags: discordgo.MessageFlagsEphemeral,
+				},
+			})
 		return
 	}
+	bot.log.WithField("GuildID", t.GuildID()).Trace(
+		"Creating new music queue",
+	)
 
 	// Construct a new queue, send it to the channel
 	// and persist it in the datastore
 	queue := bot.builder.Queue().NewQueue(
-		s.State.User.ID,
-		i.GuildID,
+		bot.session.State.User.ID,
+		t.GuildID(),
 		"", "",
 	)
 	embed := bot.builder.Queue().MapQueueToEmbed(queue)
 	components := bot.builder.Queue().GetMusicQueueComponents(queue)
 
-	err := s.InteractionRespond(
-		i.Interaction,
+	err := bot.session.InteractionRespond(
+		t.Interaction(),
 		&discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -54,15 +59,15 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 			},
 		})
 	if err != nil {
-		bot.WithField("GuildID", i.GuildID).Errorf(
+		bot.log.WithField("GuildID", t.GuildID()).Errorf(
 			"Error when sending a new queue: %v",
 			err,
 		)
 		return
 	}
-	msg, err := s.InteractionResponse(i.Interaction)
+	msg, err := bot.session.InteractionResponse(t.Interaction())
 	if err != nil {
-		bot.Errorf(
+		bot.log.Errorf(
 			"Error when fetching interaction response message: %v",
 			err,
 		)
@@ -71,7 +76,7 @@ func (bot *Bot) onMusicSlashCommand(s *discordgo.Session, i *discordgo.Interacti
 	queue.MessageID = msg.ID
 	queue.ChannelID = msg.ChannelID
 	if err := bot.datastore.Queue().PersistQueue(queue); err != nil {
-		bot.Errorf("Error when persisting a new queue: %v", err)
+		bot.log.Errorf("Error when persisting a new queue: %v", err)
 		return
 	}
 }

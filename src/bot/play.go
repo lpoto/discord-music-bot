@@ -2,195 +2,280 @@ package bot
 
 import (
 	"discord-music-bot/bot/audioplayer"
+	"discord-music-bot/bot/transaction"
 	"discord-music-bot/model"
 	"time"
-
-	"github.com/bwmarrin/discordgo"
 )
+
+type AudioplayerEventHandler struct {
+	*Bot
+}
 
 // play searches for a queue that belongs to the provided guildID
 // and starts playing it's headSong if no song is currently playing.
-func (bot *Bot) play(s *discordgo.Session, guildID string, channelID string) error {
-	if len(channelID) == 0 {
-		return nil
-	}
-	if _, ok := bot.audioplayers.Get(guildID); ok {
+func (bot *Bot) play(t *transaction.Transaction, channelID string) {
+	// NOTE: make sure there is no audioplayer already active
+	if _, ok := bot.audioplayers.Get(t.GuildID()); ok {
 		// NOTE: audio has already been started from
 		// another source, do not continue
 		time.Sleep(300 * time.Millisecond)
-		if _, ok := bot.audioplayers.Get(guildID); ok {
-			return nil
+		if _, ok := bot.audioplayers.Get(t.GuildID()); ok {
+			// NOTE: should still update even when
+			// returning as there must be a reason
+			// for the play request
+			t.UpdateQueue(100 * time.Millisecond)
+			return
 		}
-		return nil
 	}
 
-	bot.WithField("GuildID", guildID).Trace("Play request")
-
-	ap := audioplayer.NewAudioPlayer(
-		s,
-		bot.youtube,
-		guildID,
-		audioplayer.NewDeferFunctions(
-			bot.audioplayerDefaultDefer,
-			bot.audioplayerDefaultErrorDefer,
-		),
+	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+		"Play requested, creating an audioplayer ...",
 	)
 
-	bot.audioplayers.Add(guildID, ap)
-	defer bot.audioplayers.Remove(guildID)
+	events := &AudioplayerEventHandler{bot}
+	util := &Util{bot}
 
-	queue, err := bot.datastore.Queue().GetQueue(s.State.User.ID, guildID)
-	if err != nil {
-		return err
-	}
-	queue, err = bot.datastore.Song().UpdateQueueWithSongs(queue)
-	if err != nil {
-		return err
-	}
-	if queue.HeadSong == nil {
-		return nil
+	// NOTE: try to join the voice channel, if client
+	// is already in the one identified by the channelID,
+	// it will not connect again
+	if err := util.joinVoice(t, channelID); err != nil {
+		t.UpdateQueue(100 * time.Millisecond)
+		return
 	}
 
-	if err := bot.joinVoice(s, guildID, channelID); err != nil {
-		return nil
-	}
+	ap := audioplayer.NewAudioPlayer(bot.youtube)
 
-	// NOTE: always play the queue's headSong,
-	// as it is the song with the minimum position
-	// in the queue
-	song := queue.HeadSong
+	// NOTE: handle all external logic for audioplayer
+	// with subscriptions. That way we can easily trigger
+	// custom audioplayer events when clicking on buttons etc.
+	events.handleSubscriptions(t, ap)
 
-	bot.WithField(
-		"GuildID", guildID,
-	).Tracef("Playing song: %s", song.Name)
+	bot.audioplayers.Add(t.GuildID(), ap)
 
-	if err := ap.Play(bot.ctx, song); err != nil {
-		if err.Error() == "Voice connection closed" {
-			// NOTE: stop playing since bot has been
-			// disconnected from the voice channel
-			return nil
-		}
-		bot.Errorf("Error when playing: %v", err)
-	}
+	// NOTE: try to start playing, and then
+	// update the queue, as it should be updated if
+	// audioplayer started succesfully or if it failed.
+	events.startPlayingSong(t, ap)
 
-	select {
-	case <-bot.ctx.Done():
-		return nil
-	default:
-		continuePlaying := ap.Continue
-		bot.audioplayers.Remove(guildID)
-		if continuePlaying {
-			return bot.play(s, guildID, channelID)
-		}
-	}
-	return nil
+	t.UpdateQueue(100 * time.Millisecond)
+
 }
 
-// audioplayerDefaultDefer is the default function called
-// when the audioplayer finishes. This will only be called if
-// no other functions were passed into the audioplayer's deferfuncbuffer
-func (bot *Bot) audioplayerDefaultDefer(s *discordgo.Session, guildID string) {
-	queue, err := bot.datastore.Queue().GetQueue(
-		s.State.User.ID,
-		guildID,
+func (bot *AudioplayerEventHandler) handleSubscriptions(t *transaction.Transaction, ap *audioplayer.AudioPlayer) {
+	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
+		"Handling audioplayer subscriptions",
+	)
+	ap.Subscriptions().Subscribe("stop", func() {
+		ap.Stop()
+	})
+	ap.Subscriptions().Subscribe("pause", func() {
+		ap.Unpause()
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("unpause", func() {
+		ap.Pause()
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("finished", func() {
+		bot.handleHeadSongRemoval(t)
+		bot.startPlayingSong(t, ap)
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("replay", func() {
+		ap.Subscriptions().Emit("stop")
+		bot.startPlayingSong(t, ap)
+	})
+	ap.Subscriptions().Subscribe("skip", func() {
+		ap.Subscriptions().Emit("stop")
+		ap.Subscriptions().Emit("finished")
+	})
+	ap.Subscriptions().Subscribe("skipToPrevious", func() {
+		ap.Subscriptions().Emit("stop")
+		bot.handleReverseHeadSongRemoval(t)
+		bot.startPlayingSong(t, ap)
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("error", func() {
+		bot.handleAudioplayerError(t.GuildID())
+		bot.startPlayingSong(t, ap)
+		t.Refresh()
+		t.UpdateQueue(100 * time.Millisecond)
+	})
+	ap.Subscriptions().Subscribe("delete", func() {
+		bot.audioplayers.Remove(t.GuildID())
+	})
+	ap.Subscriptions().Subscribe("terminate", func() {
+		ap.Subscriptions().Emit("stop")
+		ap.Subscriptions().Emit("delete")
+	})
+}
+
+func (bot *AudioplayerEventHandler) startPlayingSong(t *transaction.Transaction, ap *audioplayer.AudioPlayer) {
+	song, err := bot.datastore.Song().GetHeadSongForQueue(
+		bot.session.State.User.ID,
+		t.GuildID(),
 	)
 	if err != nil {
+		ap.Subscriptions().Emit("delete")
+		bot.log.WithField("GuildID", t.GuildID()).Trace(
+			"No head song found, cannot start playing",
+		)
 		return
 	}
-	queue, err = bot.datastore.Song().UpdateQueueWithSongs(queue)
-	if err != nil {
-		return
+	voice, ok := bot.session.VoiceConnections[t.GuildID()]
+	if ok == false || !voice.Ready {
+		time.Sleep(300 * time.Second)
+		voice, ok = bot.session.VoiceConnections[t.GuildID()]
+		if ok == false || !voice.Ready {
+			ap.Subscriptions().Emit("delete")
+			bot.log.WithField("GuildID", t.GuildID()).Debug(
+				"Failed to connect to voice",
+			)
+			return
+		}
 	}
+	go func() {
+		bot.log.WithField("GuildID", t.GuildID()).Tracef(
+			"Playing song: %v", song.Name,
+		)
+		code, err := ap.Play(bot.ctx, song, voice)
+		switch code {
+		case 0:
+			bot.log.WithField("GuildID", t.GuildID()).Tracef(
+				"Audioplayer finished on itself",
+			)
+			ap.Subscriptions().Emit("finished")
+			return
+		case 1:
+			bot.log.WithField("GuildID", t.GuildID()).Tracef(
+				"Audioplayer finished with error: %v",
+				err,
+			)
+			ap.Subscriptions().Emit("error")
+			return
+		default:
+			bot.log.WithField("GuildID", t.Interaction().GuildID).Tracef(
+				"Audioplayer exited with code: %d", code,
+			)
+		}
+	}()
+	return
+}
 
-	// NOTE: if loop is enabled in the queue
-	// push it's headSong to the back of the queue
-	// else just
-	if bot.builder.Queue().QueueHasOption(queue, model.Loop) {
+func (bot *AudioplayerEventHandler) handleAudioplayerError(guildID string) {
+	bot.log.WithField("GuildID", guildID).Trace(
+		"Removing queue's head song",
+	)
+	bot.removeHeadSong(guildID)
+}
+
+func (bot *AudioplayerEventHandler) handleHeadSongRemoval(t *transaction.Transaction) {
+	if bot.datastore.Queue().QueueHasOption(
+		bot.session.State.User.ID,
+		t.GuildID(),
+		model.Loop,
+	) {
+		bot.log.WithField("GuildID", t.GuildID()).Trace(
+			"Bot has loop enabled, pushing head song to back",
+		)
 		if err := bot.datastore.Song().PushHeadSongToBack(
-			s.State.User.ID,
-			guildID,
+			bot.session.State.User.ID,
+			t.GuildID(),
 		); err != nil {
-			bot.Errorf(
-				"Error when pushing first song to back during play: %v",
+			bot.log.WithField("GuildID", t.GuildID()).Errorf(
+				"Error when pushing head song to back during play: %v",
 				err,
 			)
 		}
+		return
+	}
+	bot.log.WithField("GuildID", t.GuildID()).Trace(
+		"Bot does not have loop enabled, removing head song",
+	)
+	headsong, err := bot.datastore.Song().GetHeadSongForQueue(
+		bot.session.State.User.ID,
+		t.GuildID(),
+	)
+	if err != nil {
+		bot.log.WithField("GuildID", t.GuildID()).Errorf(
+			"Error when fetching head song during play: %v",
+			err,
+		)
 	} else {
 		// NOTE: persist queue's headSong to inactive song table
-		if err := bot.datastore.Song().PersistInactiveSongs(
-			s.State.User.ID,
-			guildID,
-			queue.HeadSong,
+		if err = bot.datastore.Song().PersistInactiveSongs(
+			bot.session.State.User.ID,
+			t.GuildID(),
+			headsong,
 		); err != nil {
-			bot.Errorf(
-				"Error when removing song during play: %v", err,
+			bot.log.WithField("GuildID", t.GuildID()).Errorf(
+				"Error when persisting inactive song during play: %v",
+				err,
 			)
-		}
-		if err := bot.datastore.Song().RemoveHeadSong(
-			// NOTE: the finished song should be removed
-			// from the queue
-			s.State.User.ID,
-			guildID,
-		); err != nil {
-			bot.Errorf(
-				"Error when removing song during play: %v", err,
-			)
-		}
-	}
 
-	bot.queueUpdater.NeedsUpdate(guildID)
-	bot.queueUpdater.Update(s, guildID)
+		}
+		bot.removeHeadSong(t.GuildID())
+	}
 }
 
-// audioplayerDefaultErrorDefer is the default function called
-// when the audioplayer finishes with error.
-func (bot *Bot) audioplayerDefaultErrorDefer(s *discordgo.Session, guildID string) {
-	// NOTE: if error occured when playing the head song,
-	// it should be removed
+func (bot *AudioplayerEventHandler) handleReverseHeadSongRemoval(t *transaction.Transaction) {
+	if bot.datastore.Queue().QueueHasOption(
+		bot.session.State.User.ID,
+		t.GuildID(),
+		model.Loop,
+	) {
+		bot.log.WithField("GuildID", t.GuildID()).Trace(
+			"Bot has loop enabled, pushing last song to front",
+		)
+		if err := bot.datastore.Song().PushLastSongToFront(
+			bot.session.State.User.ID,
+			t.GuildID(),
+		); err != nil {
+			bot.log.WithField("GuildID", t.GuildID()).Errorf(
+				"Error when pushing last song to fron during play: %v",
+				err,
+			)
+		}
+		return
+	}
 
+	bot.log.WithField("GuildID", t.GuildID()).Trace(
+		"Bot does not have loop enabled, popping latest inactive song",
+	)
+	song, err := bot.datastore.Song().PopLatestInactiveSong(
+		bot.session.State.User.ID,
+		t.GuildID(),
+	)
+	if err != nil {
+		bot.log.WithField("GuildID", t.GuildID()).Errorf(
+			"Error when popping latest inactive song during play: %v",
+			err,
+		)
+		return
+	}
+	if err := bot.datastore.Song().PersistSongToFront(
+		bot.session.State.User.ID,
+		t.GuildID(),
+		song,
+	); err != nil {
+		bot.log.WithField("GuildID", t.GuildID()).Errorf(
+			"Error when persisting song to fron during play: %v",
+			err,
+		)
+	}
+}
+
+func (bot *AudioplayerEventHandler) removeHeadSong(guildID string) {
 	if err := bot.datastore.Song().RemoveHeadSong(
-		// NOTE: the finished song should be removed
-		// from the queue
-		s.State.User.ID,
+		bot.session.State.User.ID,
 		guildID,
 	); err != nil {
-		bot.Errorf(
+		bot.log.Errorf(
 			"Error when removing song during play: %v", err,
 		)
 	}
-	bot.queueUpdater.NeedsUpdate(guildID)
-	bot.queueUpdater.Update(s, guildID)
-}
-
-// joinVoice connects to the voice channel identified by the provided guilID and
-// channelID, returns error on failure. If the client is already connected to the
-// voice channel, it does not connect again.
-func (bot *Bot) joinVoice(s *discordgo.Session, guildID string, channelID string) error {
-	if vc, ok := s.VoiceConnections[guildID]; ok && vc.ChannelID == channelID {
-		return nil
-	}
-	if _, err := s.ChannelVoiceJoin(guildID, channelID, false, false); err != nil {
-		bot.Tracef("Could not join voice: %v", err)
-		if buffer, ok := bot.queueUpdater.GetInteractionsBuffer(guildID); ok {
-		responseLoop:
-			for i := 0; i < len(buffer); i++ {
-				select {
-				case interaction := <-buffer:
-					err := s.InteractionRespond(interaction, &discordgo.InteractionResponse{
-						Type: discordgo.InteractionResponseChannelMessageWithSource,
-						Data: &discordgo.InteractionResponseData{
-							Content: "Cannot join the channel, I may be missing permissions",
-							Flags:   discordgo.MessageFlagsEphemeral,
-						},
-					})
-					if err != nil {
-						continue responseLoop
-					}
-					break responseLoop
-				}
-			}
-		}
-		return err
-	}
-	return nil
 }

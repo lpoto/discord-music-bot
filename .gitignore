@@ -3,3 +3,4 @@
 .nvimrc
 log/
 config.yaml
+config.system.yaml
