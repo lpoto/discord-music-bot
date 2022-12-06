@@ -14,10 +14,6 @@ type AudioplayerEventHandler struct {
 // play searches for a queue that belongs to the provided guildID
 // and starts playing it's headSong if no song is currently playing.
 func (bot *Bot) play(t *transaction.Transaction, channelID string) {
-	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
-		"Play requested ...",
-	)
-
 	// NOTE: make sure there is no audioplayer already active
 	if _, ok := bot.audioplayers.Get(t.GuildID()); ok {
 		// NOTE: audio has already been started from
@@ -27,16 +23,13 @@ func (bot *Bot) play(t *transaction.Transaction, channelID string) {
 			// NOTE: should still update even when
 			// returning as there must be a reason
 			// for the play request
-			bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
-				"Audioplayer already exists",
-			)
 			t.UpdateQueue(100 * time.Millisecond)
 			return
 		}
 	}
 
 	bot.log.WithField("GuildID", t.Interaction().GuildID).Trace(
-		"No existing audioplayer, creating one ...",
+		"Play requested, creating an audioplayer ...",
 	)
 
 	events := &AudioplayerEventHandler{bot}
@@ -122,8 +115,6 @@ func (bot *AudioplayerEventHandler) handleSubscriptions(t *transaction.Transacti
 }
 
 func (bot *AudioplayerEventHandler) startPlayingSong(t *transaction.Transaction, ap *audioplayer.AudioPlayer) {
-	bot.log.WithField("GuildID", t.GuildID()).Trace("Try to start playing")
-
 	song, err := bot.datastore.Song().GetHeadSongForQueue(
 		bot.session.State.User.ID,
 		t.GuildID(),

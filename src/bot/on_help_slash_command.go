@@ -11,7 +11,6 @@ import (
 // discord's websocket, but is rather called from INTERACTION_CREATE event when
 // the interaction's command data name matches the help slash command's name.
 func (bot *DiscordEventHandler) onHelpSlashCommand(t *transaction.Transaction) {
-	bot.log.WithField("GuildID", t.GuildID()).Trace("Help slash command")
 	defer t.Defer()
 
 	help := bot.helpContent

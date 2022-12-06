@@ -12,7 +12,6 @@ import (
 // discord's websocket, but is rather called from INTERACTION_CREATE event when
 // the interaction's command data name matches the music slash command's name.
 func (bot *DiscordEventHandler) onMusicSlashCommand(t *transaction.Transaction) {
-	bot.log.WithField("GuildID", t.GuildID()).Trace("Music slash command")
 	defer t.Defer()
 
 	// NOTE: only a single queue may be active in a guild at once
@@ -36,6 +35,9 @@ func (bot *DiscordEventHandler) onMusicSlashCommand(t *transaction.Transaction) 
 			})
 		return
 	}
+	bot.log.WithField("GuildID", t.GuildID()).Trace(
+		"Creating new music queue",
+	)
 
 	// Construct a new queue, send it to the channel
 	// and persist it in the datastore

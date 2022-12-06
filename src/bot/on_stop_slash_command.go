@@ -11,7 +11,6 @@ import (
 // discord's websocket, but is rather called from INTERACTION_CREATE event when
 // the interaction's command data name matches the stop slash command's name.
 func (bot *DiscordEventHandler) onStopSlashCommand(t *transaction.Transaction) {
-	bot.log.WithField("GuildID", t.GuildID()).Trace("Stop slash command")
 	defer t.Defer()
 
 	queue, err := bot.datastore.Queue().GetQueue(

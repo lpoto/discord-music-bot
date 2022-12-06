@@ -1,7 +1,7 @@
 MusicBot:
   LogLevel: DEBUG                                                         # default log level for the music bot
   DiscordToken: discord_bot_token                                         # the authentication token for the bot
-  MaxAloneTime: 5m                                                        # time after the bot leaves, if it's alone in the channel
+  MaxAloneTime: 5m                                                        # time after the bot leaves, if it's alone in the channel (NOTE: this should never be less than a minute)
   Datastore:
     LogLevel: DEBUG                                                       # Log level for the postgres datastore
     InactiveSongTTL: 2h                                                   # Duration after which the inactive song is deleted (song that has already been listened to and may be accessed by clicking the "previous" button)

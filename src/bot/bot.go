@@ -87,7 +87,7 @@ func (bot *Bot) Init() error {
 	if err := bot.datastore.Connect(); err != nil {
 		return err
 	}
-	if err := bot.datastore.Init(bot.ctx, true); err != nil {
+	if err := bot.datastore.Init(bot.ctx); err != nil {
 		return err
 	}
 	bot.log.Info("Bot initialized")
@@ -138,10 +138,45 @@ func (bot *Bot) Run() {
 		bot.session.Close()
 	}()
 
+	// NOTE: check at intervals bot's voice connections
+	// if bot is in a channel with no active listeners
+	// for longer than the config's MaxAloneTime,
+	// disconnect it from that channel.
+	ticker := time.NewTicker(15 * time.Second)
+	noListeners := make(map[string]time.Time)
+
 	for {
 		select {
 		case <-done:
 			return
+		case <-ticker.C:
+			for guildID, vc := range bot.session.VoiceConnections {
+				if util.hasListeners(guildID) {
+					delete(noListeners, guildID)
+					continue
+				}
+				if _, ok := noListeners[guildID]; !ok {
+					noListeners[guildID] = time.Now()
+				}
+				if time.Since(noListeners[guildID]) >
+					bot.config.MaxAloneTime {
+
+					bot.log.WithFields(log.Fields{
+						"GuildID":   guildID,
+						"AloneTime": time.Since(noListeners[guildID]),
+					}).Trace(
+						"Bot alone in channel for too long, disconnecting",
+					)
+
+					if ap, ok := bot.audioplayers.Get(guildID); ok {
+						ap.Subscriptions().Emit("stop")
+						time.Sleep(100 * time.Millisecond)
+					}
+
+					vc.Disconnect()
+					delete(noListeners, guildID)
+				}
+			}
 		}
 	}
 }

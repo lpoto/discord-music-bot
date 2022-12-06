@@ -14,8 +14,6 @@ import (
 // is called when the type of interaction is determined to be
 // add songs modal submit, in the onInteractionCreate function.
 func (bot *DiscordEventHandler) onAddSongsModalSubmit(t *transaction.Transaction) {
-	bot.log.WithField("GuildID", t.GuildID()).Trace("Add songs modal submit")
-
 	actionsRow := (t.Interaction().ModalSubmitData().Components[0]).(*discordgo.ActionsRow)
 	textInput := (actionsRow.Components[0]).(*discordgo.TextInput)
 

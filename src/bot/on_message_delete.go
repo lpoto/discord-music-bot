@@ -8,8 +8,6 @@ import (
 // MESSAGE_DELETE event. It determines whether the delted message
 // was a music bot's queue message and if so, it deletes the queue.
 func (bot *DiscordEventHandler) onMessageDelete(m *discordgo.MessageDelete) {
-	bot.log.WithField("GuildID", m.GuildID).Trace("Message deleted")
-
 	util := &Util{bot.Bot}
 	util.deleteQueue(m.GuildID, []string{m.ID})
 }

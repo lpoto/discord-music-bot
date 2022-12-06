@@ -81,7 +81,6 @@ func (bot *Util) deleteQueue(guildID string, messageIDs []string) {
 		}
 	}
 	if !ok {
-		bot.log.Trace("The queue message was not deleted")
 		return
 	}
 	bot.log.Trace("The queue message was deleted, removing the queue")
@@ -190,4 +189,54 @@ func (bot *Util) ensureClientTextChannelPermissions(channelID string) bool {
 		return false
 	}
 	return true
+}
+
+// hasListeners checks whether the client has any listeners in the
+// voice channel it is connected to in the guild identified by
+// the provided guildID.
+// Listeners are undeafened members in the same channel as the client.
+func (bot *Util) hasListeners(guildID string) bool {
+	clientState, err := bot.session.State.VoiceState(
+		guildID,
+		bot.session.State.User.ID,
+	)
+	if err != nil {
+		return false
+	}
+	maxMembersFetch := 1000
+	done := bot.ctx.Done()
+	after := ""
+outerMemberLoop:
+	for i := 0; i < 100; i++ {
+		members, err := bot.session.GuildMembers(guildID, after, maxMembersFetch)
+		if err != nil {
+			return false
+		}
+	innerMemberLoop:
+		for _, m := range members {
+			select {
+			case <-done:
+				return false
+			default:
+				if m.User.ID == bot.session.State.User.ID {
+					continue innerMemberLoop
+				}
+				memberState, err := bot.session.State.VoiceState(
+					guildID,
+					m.User.ID,
+				)
+				if err != nil {
+					continue innerMemberLoop
+				}
+				if memberState.ChannelID == clientState.ChannelID &&
+					!memberState.Deaf && !memberState.SelfDeaf {
+					return true
+				}
+			}
+		}
+		if len(members) < maxMembersFetch {
+			break outerMemberLoop
+		}
+	}
+	return false
 }

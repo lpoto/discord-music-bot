@@ -87,7 +87,7 @@ func main() {
 	go func() {
 		// graceful shutdown
 		<-shutdownSignal
-		log.Println()
+		log.Infoln()
 		log.Warn("Shutdown requested ...")
 		cancel()
 		select {
@@ -96,5 +96,5 @@ func main() {
 		log.Fatal("Forced shutdown")
 	}()
 	bot.Run()
-	log.Print("Clean Shutdown")
+	log.Infoln("Clean Shutdown")
 }
