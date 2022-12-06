@@ -390,13 +390,27 @@ func (s *SongStoreTestSuite) TestIntegrationInactiveSongsCRUD() {
 		},
 	)
 	s.NoError(err)
+	err = s.store.PersistInactiveSongs(
+		"CLIENT-ID-TEST",
+		"GUILD-ID-TEST",
+		&model.Song{
+			ID:              3,
+			Name:            "Song3",
+			ShortName:       "Song3",
+			Url:             "SongUrl3",
+			DurationSeconds: 10,
+			DurationString:  "00:10",
+			Color:           0,
+		},
+	)
+	s.NoError(err)
 
 	// Should get that there are 2 songs
 	count := s.store.GetInactiveSongCountForQueue(
 		"CLIENT-ID-TEST",
 		"GUILD-ID-TEST",
 	)
-	s.Equal(count, 2)
+	s.Equal(count, 3)
 
 	song, err := s.store.PopLatestInactiveSong(
 		"CLIENT-ID-TEST",
@@ -404,34 +418,34 @@ func (s *SongStoreTestSuite) TestIntegrationInactiveSongsCRUD() {
 	)
 	s.NoError(err)
 	// The latest one added should be popped
-	s.Equal(uint(2), song.ID)
-	s.Equal("Song2", song.Name)
-	s.Equal("Song2", song.ShortName)
-	s.Equal("SongUrl2", song.Url)
+	s.Equal(uint(3), song.ID)
+	s.Equal("Song3", song.Name)
+	s.Equal("Song3", song.ShortName)
+	s.Equal("SongUrl3", song.Url)
 
 	// Should get that there is now a single song
 	count = s.store.GetInactiveSongCountForQueue(
 		"CLIENT-ID-TEST",
 		"GUILD-ID-TEST",
 	)
-	s.Equal(count, 1)
+	s.Equal(count, 2)
 
 	song, err = s.store.PopLatestInactiveSong(
 		"CLIENT-ID-TEST",
 		"GUILD-ID-TEST",
 	)
 	s.NoError(err)
-	s.Equal(uint(1), song.ID)
-	s.Equal("Song1", song.Name)
-	s.Equal("Song1", song.ShortName)
-	s.Equal("SongUrl1", song.Url)
+	s.Equal(uint(2), song.ID)
+	s.Equal("Song2", song.Name)
+	s.Equal("Song2", song.ShortName)
+	s.Equal("SongUrl2", song.Url)
 
 	// Should get that there are now no songs
 	count = s.store.GetInactiveSongCountForQueue(
 		"CLIENT-ID-TEST",
 		"GUILD-ID-TEST",
 	)
-	s.Equal(count, 0)
+	s.Equal(count, 1)
 }
 
 // TestSongStorageTestSuite runs all tests under
