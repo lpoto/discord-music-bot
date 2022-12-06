@@ -27,7 +27,7 @@ func (bot *DiscordEventHandler) onStopSlashCommand(t *transaction.Transaction) {
 				},
 			}); err != nil {
 			bot.log.WithField("GuildID", t.GuildID()).Errorf(
-				"Error when responding to help command: %v",
+				"Error when responding to stop command: %v",
 				err,
 			)
 		}
@@ -43,13 +43,13 @@ func (bot *DiscordEventHandler) onStopSlashCommand(t *transaction.Transaction) {
 				},
 			}); err != nil {
 			bot.log.WithField("GuildID", t.GuildID()).Errorf(
-				"Error when responding to help command: %v",
+				"Error when responding to stop command: %v",
 				err,
 			)
 		}
+		util := &Util{bot.Bot}
+		util.deleteQueue(t.GuildID(), []string{queue.MessageID})
 	}
-	util := &Util{bot.Bot}
-	util.deleteQueue(t.GuildID(), []string{queue.MessageID})
 
 	if err := bot.session.InteractionRespond(t.Interaction(),
 		&discordgo.InteractionResponse{
@@ -60,7 +60,7 @@ func (bot *DiscordEventHandler) onStopSlashCommand(t *transaction.Transaction) {
 			},
 		}); err != nil {
 		bot.log.WithField("GuildID", t.GuildID()).Errorf(
-			"Error when responding to help command: %v",
+			"Error when responding to stop command: %v",
 			err,
 		)
 	}

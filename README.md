@@ -12,31 +12,36 @@ Report any issues [here](https://github.com/lpoto/discord-music-bot/issues).
 
 - Use `/music` to start a new muisc queue in the channel.
 
-  - Only a single queue may be active in a single discord server.
+  > Only a single queue may be active in a single discord server.
 
-- Add songs by clicking the `Add` button.
+- `Add` button opens a modal through which songs may be added.
 
-  - Multiple songs may be added at a time, by typing them each in their own line.
-  - Either the name or the url to a Youtube song may be typed to add the desired song.
+  > Multiple songs may be added at a time, by typing them each in their own line.
+  > Either the name or the url to a Youtube song may be typed to add the desired song.
 
-- The queue displays up to 10 songs at once, navigate the queue with `<` and `>` buttons.
+- `<`, `>` buttons allow you to navigate through the displayed songs.
 
-- To skip a song, press `>>`, to go back to the previous song, click `<<`.
+- `Loop` button enables loop.
 
-- To pause the song, click the `||` button.
+  > When loop is enabled, songs are not removed from the queue but rather pushed to the back of the queue.
 
-- To replay the currently playing song from the start, press `↺`
+- `>>` button skips the currently playing song.
 
-- To enable loop, click on `Loop`.
+- `<<` button starts playing the previous song.
 
-  - When loop is enabled, songs are not removed from the queue but rather pushed to the back of the queue.
+  > Previous songs are deleted after a few hours.
+  > If _loop_ is enabled, the button will start playing the last song in the queue.
+
+- `||` button pauses the currently playing song.
+
+- `↺` button replays the currently playing song.
 
 - Bot will leave the channel after being alone for 2 minutes.
 
-  - The queue won't be deleted, click on `Join` and the bot will start playing again.
+  > The queue won't be deleted, click on `Join` and the bot will start playing again.
 
 - Bot will disconnect if the queue message is deleted.
 
 - Stop the music with `/stop`. (This is only temporary)
 
-See [develop](https://github.com/lpoto/discord-music-bot/blob/main/doc/develop.md)
+To help developing the bot see [develop](https://github.com/lpoto/discord-music-bot/blob/main/doc/develop.md)

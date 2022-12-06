@@ -110,7 +110,7 @@ streamingLoop:
 	for i := 0; i < 3; i++ {
 		if ap.stop {
 			ap.stop = false
-			return 2, nil
+			return 3, nil
 		}
 		streamSession, err := ap.youtube.Stream().GetSession(
 			song.Url,
@@ -130,12 +130,12 @@ streamingLoop:
 		for {
 			select {
 			case <-done:
-				return 3, nil
+				return 4, nil
 			case err = <-streamDone:
 				if err.Error() == "Voice connection closed" {
 					// NOTE: if voice connection has been closed,
 					// just stop without calling any defer functions
-					return 1, errors.New("Voice connection closed")
+					return 2, errors.New("Voice connection closed")
 				}
 				// NOTE: the stream finished, if it lasted
 				// less than a second, retry it
@@ -154,11 +154,11 @@ streamingLoop:
 				return 0, nil
 			default:
 				if vc.Ready == false {
-					return 1, errors.New("Voice connection closed")
+					return 2, errors.New("Voice connection closed")
 				}
 				if ap.stop {
 					ap.stop = false
-					return 2, nil
+					return 3, nil
 				}
 			}
 		}
