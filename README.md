@@ -1,5 +1,7 @@
 # [Discord Music Bot](https://github.com/lpoto/discord-music-bot)
 
+DEPRECATED
+
 A simple, easy to use discord bot, intended for playing youtube songs.
 
 It sends a single message in the discord server representing a music queue
